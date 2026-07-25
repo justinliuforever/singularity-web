@@ -56,7 +56,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   const unit = PLATFORM_CONTENT_UNIT[competitor.platform];
   const itemUnit = `${unit.measure}${unit.noun}`;
   const itemNoun = unit.noun;
-  const [videos, sops, activeRun] = await Promise.all([
+  const [videos, sops, activeRun, clerkLock] = await Promise.all([
     db
       .select()
       .from(clerkVideos)
@@ -68,6 +68,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
       .where(eq(clerkSops.competitorAccountId, competitor.id))
       .orderBy(desc(clerkSops.generatedAt)),
     getActiveAgentRun({ competitorAccountId: competitor.id }, user.id, "clerk", "clerk-analyze-channel"),
+    getActiveAgentRun({ competitorAccountId: competitor.id }, user.id, "clerk"),
   ]);
 
   const sopOrder: Record<string, number> = { human: 0, hottest: 1, single_video: 2, ai_reference: 3 };
@@ -130,6 +131,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
         channelName={name}
         platform={competitor.platform}
         initialActive={activeRun}
+        lockedByOtherRun={!activeRun && !!clerkLock}
       />
 
       {videos.length > 0 ? (
@@ -195,7 +197,12 @@ export default async function ClerkCompetitorPage({ params }: Props) {
                     {formatDateTime(v.analyzedAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <SingleVideoSopButton videoId={v.id} hasTranscript={!!v.transcript} />
+                    <SingleVideoSopButton
+                      videoId={v.id}
+                      hasTranscript={!!v.transcript}
+                      isImagePost={v.contentType.endsWith("_image")}
+                      blockedReason={clerkLock ? "该账号有分析任务在运行，完成后再拆解单条" : undefined}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

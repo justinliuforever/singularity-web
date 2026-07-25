@@ -1384,11 +1384,13 @@ export const appRouter = router({
           )
           .limit(1);
         if (!video) throw new TRPCError({ code: "NOT_FOUND", message: "视频不存在" });
-        if (video.contentType.endsWith("_image")) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "图文帖没有语音内容，不支持单条拆解" });
-        }
         if (!video.transcript || !video.transcript.trim()) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "该视频没有字幕/转写，无法生成单条拆解" });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: video.contentType.endsWith("_image")
+              ? "这条图文没有正文内容，无法拆解"
+              : "该视频没有字幕/转写，无法生成单条拆解",
+          });
         }
 
         const owner: { channelId: string } | { competitorAccountId: string } = video.channelId

@@ -44,7 +44,7 @@ export default async function ClerkChannelPage({ params }: Props) {
   const itemUnit = `${unit.measure}${unit.noun}`;
   const itemNoun = unit.noun;
 
-  const [videos, sops, activeRun, seriesRows] = await Promise.all([
+  const [videos, sops, activeRun, clerkLock, seriesRows] = await Promise.all([
     db
       .select()
       .from(clerkVideos)
@@ -56,6 +56,7 @@ export default async function ClerkChannelPage({ params }: Props) {
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
     getActiveAgentRun(channel.id, user.id, "clerk", "clerk-analyze-channel"),
+    getActiveAgentRun(channel.id, user.id, "clerk"),
     channel.platform === "youtube"
       ? db
           .select()
@@ -135,6 +136,7 @@ export default async function ClerkChannelPage({ params }: Props) {
         channelSlug={channel.slug}
         platform={channel.platform}
         initialActive={activeRun}
+        lockedByOtherRun={!activeRun && !!clerkLock}
       />
 
       {videos.length > 0 ? (
@@ -196,7 +198,12 @@ export default async function ClerkChannelPage({ params }: Props) {
                 {formatDateTime(v.analyzedAt)}
               </TableCell>
               <TableCell className="text-right">
-                <SingleVideoSopButton videoId={v.id} hasTranscript={!!v.transcript} />
+                <SingleVideoSopButton
+                  videoId={v.id}
+                  hasTranscript={!!v.transcript}
+                  isImagePost={v.contentType.endsWith("_image")}
+                  blockedReason={clerkLock ? "该账号有分析任务在运行，完成后再拆解单条" : undefined}
+                />
               </TableCell>
             </TableRow>
           ))}

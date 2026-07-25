@@ -16,10 +16,14 @@ const TERMINAL = ["FAILED", "CANCELED", "CRASHED", "SYSTEM_FAILURE", "TIMED_OUT"
 export function SingleVideoSopButton({
   videoId,
   hasTranscript,
+  isImagePost = false,
+  blockedReason,
   language = "zh",
 }: {
   videoId: string;
   hasTranscript: boolean;
+  isImagePost?: boolean;
+  blockedReason?: string;
   language?: "zh" | "en";
 }) {
   const router = useRouter();
@@ -33,8 +37,24 @@ export function SingleVideoSopButton({
 
   if (!hasTranscript) {
     return (
-      <Button size="sm" variant="ghost" disabled title="该视频没有字幕/转写，无法生成单条拆解">
-        无字幕
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled
+        title={isImagePost ? "这条图文没有正文内容，无法拆解" : "该视频没有字幕/转写，无法生成单条拆解"}
+      >
+        {isImagePost ? "无正文" : "无字幕"}
+      </Button>
+    );
+  }
+
+  // The server lock is agent-wide, so any clerk run rejects this — mirror it here rather
+  // than rendering an enabled button the table repaints every 5s during an analysis.
+  if (blockedReason) {
+    return (
+      <Button size="sm" variant="ghost" disabled title={blockedReason}>
+        <ScanLine data-icon="inline-start" />
+        单条拆解
       </Button>
     );
   }

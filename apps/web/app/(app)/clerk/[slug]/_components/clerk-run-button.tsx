@@ -25,6 +25,8 @@ type Props = {
   channelSlug?: string;
   platform: "youtube" | "xhs" | "douyin";
   initialActive?: (ActiveRun & { startedAt?: Date | string }) | null;
+  // Another clerk command is running: the lock is agent-wide, so starting would be rejected.
+  lockedByOtherRun?: boolean;
 };
 
 export function ClerkRunButton({
@@ -33,6 +35,7 @@ export function ClerkRunButton({
   channelSlug,
   platform,
   initialActive,
+  lockedByOtherRun,
 }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -63,7 +66,7 @@ export function ClerkRunButton({
           target={target}
           channelName={channelName}
           platform={platform}
-          disabled={false}
+          disabled={!!lockedByOtherRun}
           onStarted={(run) => {
             setActive(run);
             setStartedAt(Date.now());
