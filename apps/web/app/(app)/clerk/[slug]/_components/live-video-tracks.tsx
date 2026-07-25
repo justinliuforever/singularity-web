@@ -49,7 +49,7 @@ export function LiveVideoTracks({ tracks, now }: Props) {
               ) : isFailed ? (
                 <X className="size-3 text-destructive" />
               ) : isActive ? (
-                <Loader2 className="size-3 animate-spin text-clerk" />
+                <Loader2 className="size-3 animate-spin text-clerk-deep" />
               ) : (
                 <span className="size-2 rounded-full border border-muted-foreground/40" />
               )}

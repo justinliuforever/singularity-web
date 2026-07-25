@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { detectVideoLinkPlatform } from "@goooose/integrations/validators";
+
 export const startMonitorInput = z.object({
   channelId: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -14,6 +16,28 @@ export const startMonitorInput = z.object({
   contentFilter: z.enum(["all", "video", "image"]).optional(),
   // Legacy alias for contentFilter; kept so older clients keep working.
   xhsContentType: z.enum(["all", "video", "image"]).optional(),
+  // Free-text topic direction/constraints, injected into idea generation as hard rules.
+  direction: z.string().trim().max(500).optional(),
+  // clerk_sops id used as a playbook reference during idea generation.
+  sopId: z.string().uuid().optional(),
+  // "links" patrols exactly the pasted video URLs instead of scanning bound competitors.
+  sourceMode: z.enum(["batch", "links"]).default("batch"),
+  videoUrls: z.array(z.string().trim().min(1).max(500)).min(1).max(10).optional(),
+}).superRefine((val, ctx) => {
+  if (val.sourceMode !== "links") return;
+  if (!val.videoUrls || val.videoUrls.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "请至少粘贴一条视频链接" });
+    return;
+  }
+  const bad = val.videoUrls
+    .map((line, i) => (detectVideoLinkPlatform(line) === null ? i + 1 : null))
+    .filter((i): i is number => i !== null);
+  if (bad.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `第 ${bad.join("、")} 行无法识别平台 — 请粘贴小红书 / 抖音 / YouTube 的内容链接`,
+    });
+  }
 });
 
 export type StartMonitorInput = z.infer<typeof startMonitorInput>;

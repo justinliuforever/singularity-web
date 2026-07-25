@@ -83,12 +83,16 @@ export async function transcribePdf(
   }
 }
 
+const PDF_VERIFY_CHARS = 30_000;
+
 // Numbers-only second look for scanned PDFs (no text layer to cross-check against).
+// Reports how much it actually covered: a silent [] would be indistinguishable from a clean pass.
 export async function verifyPdfNumbers(
   pdfBytes: Uint8Array,
   transcript: string,
   logger?: Logger,
-): Promise<string[]> {
+): Promise<{ diffs: string[]; checked: "full" | "partial" | "failed" }> {
+  const checked = transcript.length > PDF_VERIFY_CHARS ? "partial" : "full";
   try {
     const r = await generateText({
       model: model(),
@@ -102,21 +106,25 @@ export async function verifyPdfNumbers(
             { type: "file", data: pdfBytes, mediaType: "application/pdf" },
             {
               type: "text",
-              text: `下面是这份 PDF 的一份转写。只核对数字（金额、年份、坐标、剂量、百分比、数量）：逐一对照原文，列出转写中与原文不一致或原文中不存在的数字，每行一个，格式「转写值 -> 原文实际值」（原文中不存在则写「转写值 -> 无」）。全部一致则只输出 OK。\n\n## 转写\n${transcript.slice(0, 30000)}`,
+              text: `下面是这份 PDF 的一份转写。只核对数字（金额、年份、坐标、剂量、百分比、数量）：逐一对照原文，列出转写中与原文不一致或原文中不存在的数字，每行一个，格式「转写值 -> 原文实际值」（原文中不存在则写「转写值 -> 无」）。全部一致则只输出 OK。\n\n## 转写\n${transcript.slice(0, PDF_VERIFY_CHARS)}`,
             },
           ],
         },
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return [];
-    return out
+    // An empty reply is not a clean pass — that is the exact confusion this return shape exists
+    // to remove. A diff line is the "转写值 -> 原文实际值" the prompt mandates; anything else
+    // (OK, 全部一致, a stray period) means the model found nothing.
+    if (!out) return { diffs: [], checked: "failed" };
+    const diffs = out
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l !== "OK");
+      .filter((l) => l.includes("->"));
+    return { diffs, checked: r.finishReason === "length" ? "partial" : checked };
   } catch (err) {
     logger?.warn?.(`verifyPdfNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
-    return [];
+    return { diffs: [], checked: "failed" };
   }
 }
 
@@ -155,7 +163,7 @@ export async function verifyImageNumbers(
   imageBytes: Uint8Array,
   transcript: string,
   logger?: Logger,
-): Promise<string[]> {
+): Promise<{ diffs: string[]; ok: boolean }> {
   try {
     const r = await generateText({
       model: model(),
@@ -176,19 +184,23 @@ export async function verifyImageNumbers(
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return [];
-    return out
+    if (!out) return { diffs: [], ok: false };
+    // Only "转写值 -> 图片实际值" lines are diffs; a bare OK or any other phrasing is clean.
+    const diffs = out
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l !== "OK");
+      .filter((l) => l.includes("->"));
+    return { diffs, ok: true };
   } catch (err) {
     logger?.warn?.(`verifyImageNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
-    return [];
+    return { diffs: [], ok: false };
   }
 }
 
+// "audit" means the offending lines were removed; "audit_source" means the suspect numbers are
+// still in the bible — the two must stay distinct or the review card tells the user the wrong thing.
 export type ImportFlag = {
-  type: "illegible" | "truncated" | "audit" | "image_failed";
+  type: "illegible" | "truncated" | "audit" | "audit_source" | "image_failed";
   detail: string;
   context?: string;
   resolved?: boolean;
@@ -207,6 +219,7 @@ const MAX_PDF_PAGES = 40;
 const SINGLE_CALL_PAGES = 15;
 const CHUNK_PAGES = 8;
 const MAX_DOCX_IMAGES = 60;
+const MAX_DOCX_VERIFY = 20;
 
 const digitTokens = (s: string) => new Set(s.match(/\d+(?:\.\d+)?/g) ?? []);
 
@@ -341,15 +354,25 @@ async function transcribePdfDocument(
     const suspect = [...digitTokens(withoutMarkers)].filter((n) => !layerDigits.has(n));
     if (suspect.length > 0) {
       flags.push({
-        type: "audit",
+        type: "audit_source",
         detail: `转写中 ${suspect.length} 个数字未在 PDF 文本层找到，可能识别有误：${suspect.slice(0, 10).join(", ")}${suspect.length > 10 ? "…" : ""}`,
       });
     }
   } else {
     // Scanned: no text layer, so verify the numbers against the document itself.
-    const diffs = await verifyPdfNumbers(bytes, transcript, logger);
+    const { diffs, checked } = await verifyPdfNumbers(bytes, transcript, logger);
     for (const d of diffs.slice(0, 20)) {
-      flags.push({ type: "audit", detail: `扫描件数字复核不一致：${d}` });
+      flags.push({ type: "audit_source", detail: `扫描件数字复核不一致：${d}` });
+    }
+    // An unchecked or partially-checked scan must not look like a clean audit.
+    if (checked !== "full") {
+      flags.push({
+        type: "audit_source",
+        detail:
+          checked === "failed"
+            ? "扫描件数字复核未能完成（核对调用失败），文中数字未经与原件比对，请自行核对"
+            : `扫描件数字复核只覆盖了前 ${PDF_VERIFY_CHARS.toLocaleString("en-US")} 字，其后的数字未与原件比对，请自行核对`,
+      });
     }
   }
   return transcript;
@@ -457,6 +480,46 @@ async function transcribeDocx(
   }
   if (failed > 0) {
     flags.push({ type: "image_failed", detail: `${failed} 张内嵌图表转写失败，内容可能缺失，请对照原文件补充` });
+  }
+
+  // An image has no text layer, so a digit vision invented here is invisible to every later
+  // check (the bible audit only compares bible against this transcript). Bounded: each check is
+  // another vision call, and the pool is the slowest phase of the import.
+  const numeric = clipped
+    .map((img, i) => ({ img, text: transcriptions[i] }))
+    .filter((x): x is { img: (typeof clipped)[number]; text: string } => Boolean(x.text) && /\d/.test(x.text!));
+  const toVerify = numeric.slice(0, MAX_DOCX_VERIFY);
+  if (numeric.length > toVerify.length) {
+    flags.push({
+      type: "audit_source",
+      detail: `${numeric.length} 张内嵌图表含数字，仅复核了前 ${toVerify.length} 张；其余图表中的数字未与原图比对，请自行核对`,
+    });
+  }
+  if (toVerify.length > 0) {
+    let verified = 0;
+    const results = await runPool(toVerify, 4, async ({ img, text }) => {
+      const r = await verifyImageNumbers(img.bytes, text, logger);
+      verified++;
+      // Own phase, not "transcribing document": a second pool reporting the same phase with
+      // its own total made the bar run to 100% and snap back.
+      await onProgress?.({
+        current: verified,
+        total: toVerify.length,
+        phase: "verifying chart numbers",
+        detail: `复核图表数字 ${verified}/${toVerify.length}`,
+      });
+      return r;
+    });
+    for (const d of results.flatMap((r) => r.diffs).slice(0, 20)) {
+      flags.push({ type: "audit_source", detail: `内嵌图表数字复核不一致：${d}` });
+    }
+    const unchecked = results.filter((r) => !r.ok).length;
+    if (unchecked > 0) {
+      flags.push({
+        type: "audit_source",
+        detail: `${unchecked} 张内嵌图表的数字复核调用失败，其中的数字未与原图比对，请自行核对`,
+      });
+    }
   }
   // Cropped spreadsheet previews lose their right side at the source — no extractor can
   // recover data that isn't in the file.

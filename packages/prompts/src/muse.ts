@@ -102,14 +102,25 @@ type IdeaGenerationArgs = {
   language?: "en" | "zh";
   biblePositioning?: string;
   transcript?: string | null;
+  direction?: string;
+  sopReference?: string;
 };
 
 const IDEA_TRANSCRIPT_CHARS = 6000;
+const SOP_REFERENCE_CHARS = 10_000;
 
 export function buildIdeaGenerationPrompt(args: IdeaGenerationArgs): string {
   const biblePositioning = args.biblePositioning?.trim();
   const bibleBlock = biblePositioning
     ? `\n## Channel Positioning (Bible)\n${biblePositioning}\n\nEvery generated topic must fit this positioning — its target audience, voice/tone, and content direction. Drop any idea that contradicts it.\n`
+    : "";
+  const direction = args.direction?.trim();
+  const directionBlock = direction
+    ? `\n## User-Specified Topic Direction (HARD CONSTRAINTS)\n${direction}\n\nThese constraints come from the channel owner. Every idea MUST satisfy them; drop any idea that violates them — do not bend a constraint to keep an idea.\n`
+    : "";
+  const sopReference = args.sopReference?.trim();
+  const sopBlock = sopReference
+    ? `\n## Playbook Reference (the channel's SOP)\n${sopReference.slice(0, SOP_REFERENCE_CHARS)}\n\nAlign each idea with this playbook's proven patterns where they apply. For suggested_hook_type, reuse the EXACT hook names this SOP defines.\n`
     : "";
   const transcript = args.transcript?.trim();
   const transcriptBlock = transcript
@@ -119,7 +130,7 @@ export function buildIdeaGenerationPrompt(args: IdeaGenerationArgs): string {
 
 ## Target Channel
 ${args.channelDescription}
-${bibleBlock}
+${bibleBlock}${directionBlock}${sopBlock}
 ## Source Video That Went Viral
 - **Title:** ${args.title}
 - **Channel:** ${args.channelName}

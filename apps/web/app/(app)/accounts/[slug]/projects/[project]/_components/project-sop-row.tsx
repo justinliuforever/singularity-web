@@ -94,7 +94,7 @@ export function ProjectSopRow({
 
   return (
     <div className="flex items-center gap-2.5 rounded-lg border bg-card/50 px-4 py-2.5 text-sm">
-      <FileText className="size-4 shrink-0 text-clerk" />
+      <FileText className="size-4 shrink-0 text-clerk-deep" />
       {current ? (
         <span className="min-w-0 truncate">
           <span className="text-muted-foreground">写稿 SOP：</span>
@@ -110,7 +110,7 @@ export function ProjectSopRow({
         </span>
       ) : (
         <span className="min-w-0 truncate text-muted-foreground">
-          还没有可用的写稿 SOP — 先用 Clerk 拆解生成，或从其他账号选用
+          还没有可用的写稿 SOP — 先用操盘小鹅拆解生成，或从其他账号选用
         </span>
       )}
 
@@ -122,7 +122,7 @@ export function ProjectSopRow({
           <SheetHeader>
             <SheetTitle>选用写稿 SOP</SheetTitle>
             <SheetDescription>
-              SOP 是 Clerk 从频道拆解出的可复用写稿方法论。任何账号拆出的 SOP 都可以选用到这个项目。
+              SOP 是操盘小鹅从频道拆解出的可复用写稿方法论。任何账号拆出的 SOP 都可以选用到这个项目。
             </SheetDescription>
           </SheetHeader>
 
@@ -131,7 +131,7 @@ export function ProjectSopRow({
               <p className="text-xs text-muted-foreground">加载中…</p>
             ) : (picker.data ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                还没有任何可选 SOP — 先去 Clerk 拆解一个频道。
+                还没有任何可选 SOP — 先去操盘小鹅拆解一个频道。
               </p>
             ) : (
               sections.map((section) => (
@@ -184,7 +184,7 @@ export function ProjectSopRow({
 
           <SheetFooter className="mt-auto">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              选用后，这个项目之后用 Poet 写稿都会按这份 SOP 的结构和风格来。已写好的稿不受影响。
+              选用后，这个项目之后用神笔小鹅写稿都会按这份 SOP 的结构和风格来。已写好的稿不受影响。
             </p>
           </SheetFooter>
         </SheetContent>

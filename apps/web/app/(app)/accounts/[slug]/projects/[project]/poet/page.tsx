@@ -131,7 +131,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
       {approvedIdeas.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Muse 选题 · 待写</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">灵感小鹅选题 · 待写</h2>
           <div className="flex flex-col gap-3">
             {approvedIdeas.map((idea) => (
               <article
@@ -161,7 +161,7 @@ export default async function PoetChannelPage({ params }: Props) {
                     !activeBible
                       ? "请先在账号页生成并选用频道圣经"
                       : accountPoetLock
-                        ? "该账号有 Poet 任务在运行，完成后再启动"
+                        ? "该账号有神笔小鹅任务在运行，完成后再启动"
                         : undefined
                   }
                   hasSop={hasAiReferenceSop}
@@ -175,7 +175,7 @@ export default async function PoetChannelPage({ params }: Props) {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground">
-            自定义选题（跳过 Muse，直接喂主题）
+            自定义选题（跳过灵感小鹅，直接喂主题）
           </h2>
           <CustomTopicCreateSheet
             channelId={channel.id}
@@ -237,7 +237,7 @@ export default async function PoetChannelPage({ params }: Props) {
                     status={t.status}
                     hasActiveBible={!!activeBible}
                     hasSop={hasAiReferenceSop}
-                    lockedReason={accountPoetLock ? "该账号有 Poet 任务在运行，完成后再启动" : undefined}
+                    lockedReason={accountPoetLock ? "该账号有神笔小鹅任务在运行，完成后再启动" : undefined}
                   />
                 </header>
 
@@ -358,7 +358,7 @@ export default async function PoetChannelPage({ params }: Props) {
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-sm text-muted-foreground">
           <span>这个项目还没有脚本</span>
           <span className="text-xs">
-            先在账号页生成圣经 → 用 Muse 出选题 → 回到这里点「写稿」
+            先在账号页生成圣经 → 用灵感小鹅出选题 → 回到这里点「写稿」
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -377,7 +377,7 @@ export default async function PoetChannelPage({ params }: Props) {
                 />
               }
             >
-              去 Muse 出选题
+              去灵感小鹅出选题
             </Button>
           </div>
         </div>

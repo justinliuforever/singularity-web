@@ -67,13 +67,23 @@ ${draft}`;
       out = r.text.trim();
       finishReason = r.finishReason;
     }
+    // Pro spends the output budget on reasoning, so on a long draft it truncates and the whole
+    // pass is discarded. Flash re-emits mechanically — retry there before giving up.
+    if (args.tier === "fallback" && (!out || finishReason === "length")) {
+      args.logger?.warn?.("grounding pass truncated on pro; retrying on flash");
+      const r = await generateText({ model: llm("flash"), prompt, maxOutputTokens, temperature: 0.2, maxRetries: 2 });
+      out = r.text.trim();
+      finishReason = r.finishReason;
+    }
     if (!out) {
       args.logger?.warn?.("grounding pass returned empty; keeping draft");
       return args.draft;
     }
     // Un-redacted but complete beats truncated.
     if (finishReason === "length") {
-      args.logger?.warn?.(`grounding pass truncated (length cap); keeping original draft`);
+      args.logger?.warn?.(
+        `grounding pass truncated (draft ${draft.length} chars, source ${args.source.length}); keeping original draft`,
+      );
       return args.draft;
     }
     // Intermittent over-redaction can gut the draft (seen 0.16×); normal redaction removes well under 40%.

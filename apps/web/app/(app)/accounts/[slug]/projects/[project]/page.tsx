@@ -151,14 +151,14 @@ export default async function ProjectHubPage({ params }: Props) {
           <div className="flex flex-col gap-0.5">
             <span className="flex items-center gap-2 text-base font-medium">
               <span className="size-2.5 rounded-full bg-muse" />
-              Muse · 选题官
+              灵感小鹅
             </span>
             <span className="text-xs text-muted-foreground">
               巡视对标账号 → 生成选题 · {museVideoCount?.c ?? 0} {itemDone} · {museIdeaCount?.c ?? 0} 选题
             </span>
           </div>
           <Button size="sm" render={<Link href={`/accounts/${a}/projects/${p}/muse`} />}>
-            进入 Muse
+            进入灵感小鹅
             <ArrowRight data-icon="inline-end" />
           </Button>
         </div>
@@ -173,7 +173,7 @@ export default async function ProjectHubPage({ params }: Props) {
 
       <div className="flex flex-col items-center gap-0.5 text-muted-foreground/70">
         <ChevronDown className="size-4" />
-        <span className="text-[11px]">采用选题 → Poet 写稿</span>
+        <span className="text-[11px]">采用选题 → 神笔小鹅写稿</span>
       </div>
 
       <section className="flex flex-col gap-2.5 border-l-2 border-l-poet/70 pl-4">
@@ -181,14 +181,14 @@ export default async function ProjectHubPage({ params }: Props) {
           <div className="flex flex-col gap-0.5">
             <span className="flex items-center gap-2 text-base font-medium">
               <span className="size-2.5 rounded-full bg-poet" />
-              Poet · 写手
+              神笔小鹅
             </span>
             <span className="text-xs text-muted-foreground">
               选题 / 时长 / 参考 → 成稿 · {poetTopicCount?.c ?? 0} 自定义选题 · {poetScriptCount?.c ?? 0} 脚本
             </span>
           </div>
           <Button size="sm" render={<Link href={`/accounts/${a}/projects/${p}/poet`} />}>
-            进入 Poet
+            进入神笔小鹅
             <ArrowRight data-icon="inline-end" />
           </Button>
         </div>

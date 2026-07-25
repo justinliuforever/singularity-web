@@ -87,6 +87,8 @@ export type GenerateIdeasArgs = {
   language?: "en" | "zh";
   biblePositioning?: string;
   transcript?: string | null;
+  direction?: string;
+  sopReference?: string;
 };
 
 export type GenerateIdeasResult = {
@@ -107,6 +109,8 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateId
     language: args.language,
     biblePositioning: args.biblePositioning,
     transcript: args.transcript,
+    direction: args.direction,
+    sopReference: args.sopReference,
   });
 
   // Blank/half-truncated ideas are dropped so a partial response isn't saved as success.

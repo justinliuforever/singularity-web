@@ -38,7 +38,8 @@
     "smoke-analyze-channel": "tsx scripts/smoke-analyze-channel.ts",
     "bible-import-smoke": "tsx scripts/bible-import-smoke.ts",
     "image-sop-smoke": "tsx scripts/image-sop-smoke.ts",
-    "smoke-single-video": "tsx scripts/smoke-single-video.ts"
+    "smoke-single-video": "tsx scripts/smoke-single-video.ts",
+    "smoke-muse-links": "tsx scripts/smoke-muse-links.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",

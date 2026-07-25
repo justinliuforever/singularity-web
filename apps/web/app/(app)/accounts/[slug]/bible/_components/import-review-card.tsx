@@ -15,6 +15,7 @@ const FLAG_LABEL: Record<ImportFlag["type"], string> = {
   illegible: "无法辨识",
   truncated: "内容截断",
   audit: "数字审计",
+  audit_source: "数字待核对",
   image_failed: "图表转写失败",
 };
 
@@ -22,6 +23,8 @@ const FLAG_HINT: Record<ImportFlag["type"], string> = {
   illegible: "原文件中该处模糊或被裁切。请对照原文件，用「编辑」把缺失内容补进圣经，或确认可以忽略。",
   truncated: "部分内容在原文件中就不完整。建议向文档提供方索取完整版后补充，或确认现有内容已够用。",
   audit: "这些数字未能在文档转写中找到出处，相关行已被移除。如原文件确有这些数字，请用「编辑」补回。",
+  audit_source:
+    "这些数字仍在圣经里，但没能与原文件核对一致。请对照原文件逐个确认，不对的用「编辑」改掉——确认后它们会被当作可信事实引用。",
   image_failed: "个别图表未能转写。请对照原文件把关键数据用「编辑」补进圣经，或确认可以忽略。",
 };
 

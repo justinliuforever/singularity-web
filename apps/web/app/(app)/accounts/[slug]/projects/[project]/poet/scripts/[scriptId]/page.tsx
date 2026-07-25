@@ -72,7 +72,7 @@ export default async function ScriptDetailPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="Poet · 写手" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="神笔小鹅" />
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
@@ -107,7 +107,7 @@ export default async function ScriptDetailPage({ params }: Props) {
           </h3>
           {idea ? (
             <div className="mt-2 flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Muse 选题</span>
+              <span className="text-xs text-muted-foreground">灵感小鹅选题</span>
               <p className="text-sm whitespace-pre-wrap">{idea.storyAngle ?? "—"}</p>
               {idea.sourceTitle ? (
                 <span className="text-xs text-muted-foreground">

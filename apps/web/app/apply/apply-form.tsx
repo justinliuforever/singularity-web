@@ -117,7 +117,7 @@ export function ApplyForm() {
     return (
       <div className="flex w-full max-w-xl flex-col items-start gap-6">
         <span className="flex size-12 items-center justify-center rounded-full bg-poet/15">
-          <Check className="size-6 text-poet" />
+          <Check className="size-6 text-poet-deep" />
         </span>
         <div className="flex flex-col gap-2">
           <h1 className="font-brand text-3xl">收到，申请已提交</h1>

@@ -154,7 +154,7 @@ export function NewAccountSheet({ size = "sm", trigger }: Props) {
                 }
               />
               <p className="text-[11px] leading-snug text-muted-foreground">
-                只有以后想用 Clerk「复盘」自己这个账号时才需要填；账号的定位在下一步用频道圣经描述。
+                只有以后想用操盘小鹅「复盘」自己这个账号时才需要填；账号的定位在下一步用频道圣经描述。
               </p>
               <ChannelUrlPreview platform={platform} url={platformUrl} />
             </Field>

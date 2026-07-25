@@ -14,7 +14,7 @@ export const languageEnum = pgEnum("language", ["zh", "en"]);
 const bytea = customType<{ data: Uint8Array }>({ dataType: () => "bytea" });
 
 export type ImportFlag = {
-  type: "illegible" | "truncated" | "audit" | "image_failed";
+  type: "illegible" | "truncated" | "audit" | "audit_source" | "image_failed";
   detail: string;
   context?: string;
   resolved?: boolean;

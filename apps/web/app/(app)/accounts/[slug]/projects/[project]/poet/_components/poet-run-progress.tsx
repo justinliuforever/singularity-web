@@ -287,7 +287,7 @@ function ProgressCard({
           ) : null}
         </span>
       </div>
-      <AgentTimeline stages={stages} currentPhase={progress?.phase} accentClass="text-poet" />
+      <AgentTimeline stages={stages} currentPhase={progress?.phase} accentClass="text-poet-deep" />
       {total > 0 ? (
         <div className="flex flex-col gap-1">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">

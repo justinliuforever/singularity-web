@@ -89,7 +89,7 @@ export default async function ClerkChannelPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <BackLink href="/clerk" label="Clerk · 分析师" />
+      <BackLink href="/clerk" label="操盘小鹅" />
 
       <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">

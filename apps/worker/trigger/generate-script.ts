@@ -269,6 +269,7 @@ export const generateScript = task({
           hostName: bible.hostName,
           // Import transcript grounds doc facts that didn't fit the bounded bible.
           groundingSource: bible.sourceKind === "file" ? bible.sourceTranscript : undefined,
+          logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
         },
         {
           onOutlineDone: async (outline) => {

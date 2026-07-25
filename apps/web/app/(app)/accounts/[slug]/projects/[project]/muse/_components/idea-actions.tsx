@@ -40,7 +40,7 @@ export function IdeaActions({ ideaId, state, accountSlug, projectSlug }: Props) 
       { ideaId, approved: true },
       {
         onSuccess: () =>
-          toast.success("已加入 Poet 待写", {
+          toast.success("已加入神笔小鹅待写", {
             action: { label: "撤销", onClick: () => approveIdea.mutate({ ideaId, approved: false }) },
           }),
       },
@@ -78,7 +78,7 @@ export function IdeaActions({ ideaId, state, accountSlug, projectSlug }: Props) 
             />
           }
         >
-          去 Poet 写稿
+          去神笔小鹅写稿
         </Button>
         <Button
           size="sm"
@@ -117,7 +117,7 @@ export function IdeaActions({ ideaId, state, accountSlug, projectSlug }: Props) 
     <div className="flex shrink-0 items-center gap-2">
       <Button size="sm" disabled={pending} onClick={adopt}>
         {pending ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Check data-icon="inline-start" />}
-        采用 → Poet
+        采用 → 神笔小鹅
       </Button>
       <Button
         size="sm"

@@ -182,8 +182,7 @@ export default async function AccountDetailPage({ params }: Props) {
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">先生成这个账号的频道圣经</span>
               <span className="max-w-xl text-xs text-muted-foreground">
-                用一段话描述账号定位（人设、受众、更新方向），AI 会生成一份策略简报；之后 Muse
-                出选题、Poet 写稿都按它来。
+                用一段话描述账号定位（人设、受众、更新方向），AI 会生成一份策略简报；之后灵感小鹅出选题、神笔小鹅写稿都按它来。
               </span>
             </div>
             <BibleGenerateSheet
@@ -234,7 +233,7 @@ export default async function AccountDetailPage({ params }: Props) {
         <div className="flex items-center gap-2.5">
           <span className="size-2 shrink-0 rounded-full bg-clerk" />
           <div className="flex flex-col">
-            <span className="text-sm font-medium">在 Clerk 复盘这个账号</span>
+            <span className="text-sm font-medium">在操盘小鹅复盘这个账号</span>
             <span className="text-xs text-muted-foreground">
               {analyzed
                 ? `已拆 ${clerkVideoCount?.c ?? 0} ${itemNoun} · ${clerkSopCount?.c ?? 0} 份 SOP`

@@ -14,6 +14,7 @@ import { trpc } from "@/lib/trpc";
 const BIBLE_STAGES: Stage[] = [
   { label: "读取文件", matches: (p) => p === "loading file" },
   { label: "转写文档", matches: (p) => p === "transcribing document" },
+  { label: "复核数字", matches: (p) => p === "verifying chart numbers" },
   { label: "AI 生成圣经", matches: (p) => p === "writing bible" || p === "saving" },
 ];
 
@@ -205,9 +206,10 @@ function ProgressCard({
           ) : null}
         </span>
       </div>
-      <AgentTimeline stages={BIBLE_STAGES} currentPhase={progress?.phase} accentClass="text-poet" />
+      <AgentTimeline stages={BIBLE_STAGES} currentPhase={progress?.phase} accentClass="text-poet-deep" />
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        {progress?.phase === "transcribing document" && (progress?.total ?? 0) > 1 ? (
+        {(progress?.phase === "transcribing document" || progress?.phase === "verifying chart numbers") &&
+        (progress?.total ?? 0) > 1 ? (
           <div
             className="h-full bg-poet transition-all"
             style={{ width: `${Math.min(100, Math.round(((progress?.current ?? 0) / (progress?.total ?? 1)) * 100))}%` }}

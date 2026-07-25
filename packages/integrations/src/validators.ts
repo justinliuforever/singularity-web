@@ -53,6 +53,47 @@ export function findDouyinShortLink(input: string): string | null {
   return input.match(DOUYIN_SHORT_LINK_RE)?.[0] ?? null;
 }
 
+// Sniff which platform a pasted VIDEO/NOTE link belongs to. Null (not a youtube
+// default) so unrecognizable lines can be surfaced to the user instead of guessed.
+export function detectVideoLinkPlatform(line: string): "xhs" | "douyin" | "youtube" | null {
+  const s = line.trim();
+  if (!s) return null;
+  if (/xiaohongshu\.com|xhslink\.com/i.test(s)) return "xhs";
+  if (/douyin\.com|iesdouyin\.com/i.test(s)) return "douyin";
+  if (/youtube\.com|youtu\.be/i.test(s) || /^[A-Za-z0-9_-]{11}$/.test(s)) return "youtube";
+  return null;
+}
+
+export function extractYoutubeVideoId(input: string): string | null {
+  const s = input.trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  // Pasted text can wrap the URL in title/emoji, so new URL(s) throws on the whole
+  // string — scan for an embedded watch/shorts/youtu.be id first (anchored to its
+  // URL context so an arbitrary 11-char substring can't false-match).
+  const embedded =
+    s.match(/[?&]v=([A-Za-z0-9_-]{11})/) ??
+    s.match(/(?:youtu\.be|\/shorts|\/live|\/embed|\/v)\/([A-Za-z0-9_-]{11})/);
+  if (embedded) return embedded[1]!;
+  try {
+    const parsed = new URL(s);
+    if (parsed.hostname.includes("youtu.be")) {
+      const id = parsed.pathname.replace(/^\//, "").slice(0, 11);
+      if (/^[A-Za-z0-9_-]{11}$/.test(id)) return id;
+    }
+    if (parsed.hostname.includes("youtube.com")) {
+      if (parsed.pathname.replace(/\/$/, "") === "/watch") {
+        const v = parsed.searchParams.get("v") ?? "";
+        if (/^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+      }
+      const m = parsed.pathname.match(/\/(?:shorts|live|embed|v)\/([A-Za-z0-9_-]{11})/);
+      if (m) return m[1]!;
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
 export function isValidDouyinProfileUrl(input: string): boolean {
   const s = input.trim();
   if (!s) return false;

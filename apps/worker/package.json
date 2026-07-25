@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@trigger.dev/build": "^4.4.4",
+    "@types/node": "^20",
     "trigger.dev": "^4.4.4",
     "typescript": "^5.7.0"
   }

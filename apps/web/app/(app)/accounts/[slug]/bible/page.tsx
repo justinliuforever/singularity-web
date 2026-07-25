@@ -47,7 +47,7 @@ export default async function AccountBiblePage({ params }: Props) {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">频道圣经</h1>
           <p className="text-xs text-muted-foreground">
-            账号的人设 / 受众 / 更新方向 · Muse 和 Poet 都会读取生效中的版本
+            账号的人设 / 受众 / 更新方向 · 灵感小鹅和神笔小鹅都会读取生效中的版本
           </p>
         </div>
         <BibleGenerateSheet
@@ -80,6 +80,35 @@ export default async function AccountBiblePage({ params }: Props) {
           <ImportReviewCard key={b.id} bibleId={b.id} bibleName={b.name} flags={b.importFlags ?? []} />
         ))}
 
+      <details className="flex flex-col gap-3 rounded-lg border bg-card/50 p-4 text-sm">
+        <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+          圣经是怎么生成和使用的？
+        </summary>
+        <div className="mt-3 flex flex-col gap-2 text-xs leading-relaxed text-muted-foreground">
+          <p>
+            <span className="font-medium text-foreground">两种生成方式：</span>
+            「描述想法」只顺着你写的内容展开，你没提到的章节会留「（暂无，可后续补充）」——AI 不会替你编，所以描述越具体，圣经越完整。
+            「导入文件」把文档重构成一份不超过 7000 字的策略简报：数字、人名、专有名词逐字保留并与原文核对，但不是全文照搬——
+            表格明细和次要段落会按重要性取舍，「信息源」「选题框架」两节在文档没写到时由 AI 按你的领域补写。完整原文会另存一份。
+          </p>
+          <p>
+            <span className="font-medium text-foreground">各功能按需读取章节（括号内是圣经正文里的标记）：</span>
+            短稿（不足 10 分钟，中文约 2000 字以内）读 定位 POSITIONING、人设 PERSONA、内容规则 CONTENT_RULES、方法论 METHODOLOGY；
+            长稿（10 分钟及以上）走「大纲 → 分段扩写」，这两步只跟 SOP 和素材，不读圣经章节；
+            选题分析读 定位、受众 AUDIENCE、内容支柱 CONTENT_PILLARS、内容规则、选题框架 TOPIC_FRAMEWORK、信息源 INFORMATION_SOURCES；
+            巡视对标读 定位、受众、内容规则。
+            旧格式圣经（正文里没有这些英文标记的）不支持按需读取，会整本传入——重新生成一版即可。
+          </p>
+          <p>
+            <span className="font-medium text-foreground">事实类内容（数字、案例、产品信息）：</span>
+            只有「导入文件」生成的圣经，其 方法论 METHODOLOGY 与 事实表 FACT_SHEET 才会在选题分析中作为可信事实被引用，
+            依据是它们逐字来自你的文档。数字会与转写自动比对，对不上的行会被移除并列为存疑项；扫描件与内嵌图表只能尽力核对，
+            没覆盖到的会一并标出。你确认过或用「编辑」改过的内容不再复核，这部分请自行把关。
+            这样设计是为了防止 AI 把资料里的事实错误地放进不相关的稿子。
+          </p>
+        </div>
+      </details>
+
       {activeBible ? (
         <article className="flex flex-col gap-3 rounded-lg border bg-card p-5">
           <header className="flex items-center justify-between">
@@ -96,7 +125,7 @@ export default async function AccountBiblePage({ params }: Props) {
       ) : (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-8 text-sm text-muted-foreground">
           <span>这个账号还没有频道圣经</span>
-          <span className="text-xs">账号的策略简报，Muse 和 Poet 都会以它为准</span>
+          <span className="text-xs">账号的策略简报，灵感小鹅和神笔小鹅都会以它为准</span>
           <BibleGenerateSheet
             channelId={channel.id}
             channelName={channel.name}

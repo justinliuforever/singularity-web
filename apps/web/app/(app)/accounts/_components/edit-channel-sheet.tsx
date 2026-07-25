@@ -107,7 +107,7 @@ export function EditChannelSheet({ channel }: Props) {
       if (platformChanged) lines.push(`• 平台 (${channel.platform} → ${platform})`);
       if (urlChanged) lines.push(`• 主页链接`);
       lines.push("");
-      lines.push("如果该频道已经跑过 Clerk/Muse/Poet，旧数据是基于原值生成的，会与新值不一致。建议改完后清空旧数据重跑。");
+      lines.push("如果该频道已经跑过操盘小鹅、灵感小鹅、神笔小鹅，旧数据是基于原值生成的，会与新值不一致。建议改完后清空旧数据重跑。");
       lines.push("");
       lines.push("仍要继续吗？");
       if (!confirm(lines.join("\n"))) return;
