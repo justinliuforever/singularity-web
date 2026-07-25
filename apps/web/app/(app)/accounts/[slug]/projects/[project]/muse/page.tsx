@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
-import { StaggerItem } from "@/components/stagger-item";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import { PLATFORM_LABEL } from "@/lib/platform";
 import {
@@ -30,6 +29,7 @@ import { db } from "@/lib/db";
 import { resolveOwnedProject } from "@/lib/account-access";
 
 import { IdeaActions } from "./_components/idea-actions";
+import { PendingIdeaTree, type PendingGroup } from "./_components/idea-tree";
 import { MuseRunButton } from "./_components/muse-run-button";
 import {
   MuseRunProgressPanel,
@@ -75,8 +75,10 @@ export default async function MuseChannelPage({ params }: Props) {
         dismissedAt: museIdeas.dismissedAt,
         generatedAt: museIdeas.generatedAt,
         runId: museIdeas.runId,
+        sourceVideoId: museIdeas.sourceVideoId,
         sourceTitle: museMonitorVideos.title,
         sourceUrl: museMonitorVideos.url,
+        sourceChannelName: museMonitorVideos.sourceChannelName,
       })
       .from(museIdeas)
       .leftJoin(museMonitorVideos, eq(museMonitorVideos.id, museIdeas.sourceVideoId))
@@ -109,10 +111,28 @@ export default async function MuseChannelPage({ params }: Props) {
     (i) => i.approved && !i.scripted && i.dismissedAt == null,
   ).length;
 
-  // Per-run sub-grouping of 待处理: the live run's id wins, else the newest by generatedAt.
+  // 待处理 groups by source video (mind-map tree); groups touched by the newest run get a badge.
   const newestRunId = activeRun?.runId ?? pendingIdeas[0]?.runId ?? null;
-  const newestRunIdeas = pendingIdeas.filter((i) => i.runId === newestRunId);
-  const earlierRunIdeas = pendingIdeas.filter((i) => i.runId !== newestRunId);
+  const pendingGroups: PendingGroup[] = [];
+  const groupByKey = new Map<string, PendingGroup>();
+  for (const idea of pendingIdeas) {
+    const key = idea.sourceVideoId ?? "unknown";
+    let group = groupByKey.get(key);
+    if (!group) {
+      group = {
+        key,
+        sourceTitle: idea.sourceTitle,
+        sourceUrl: idea.sourceUrl,
+        sourceChannelName: idea.sourceChannelName,
+        isLatestRun: false,
+        ideas: [],
+      };
+      groupByKey.set(key, group);
+      pendingGroups.push(group);
+    }
+    group.ideas.push(idea);
+    if (idea.runId === newestRunId) group.isLatestRun = true;
+  }
 
   let liveStats: LiveStats | null = null;
   let lastProcessed: LastProcessed = null;
@@ -339,113 +359,11 @@ export default async function MuseChannelPage({ params }: Props) {
             {pendingIdeas.length === 0 ? (
               <span className="text-xs text-muted-foreground">待处理选题已清空</span>
             ) : (
-              <div className="flex flex-col gap-6">
-                {[
-                  { key: "newest", label: `本次巡视 · ${newestRunIdeas.length}`, rows: newestRunIdeas },
-                  { key: "earlier", label: `更早 · ${earlierRunIdeas.length}`, rows: earlierRunIdeas },
-                ]
-                  .filter((g) => g.rows.length > 0)
-                  .map((group) => (
-                    <div key={group.key} className="flex flex-col gap-4">
-                      <span className="text-xs text-muted-foreground">{group.label}</span>
-                      {group.rows.map((idea, i) => (
-                        <StaggerItem key={idea.id} index={i}>
-                          <article className="flex flex-col gap-3 rounded-lg border bg-card p-5">
-                            <header className="flex items-start justify-between gap-3">
-                              <div className="flex flex-col gap-1">
-                                <span className="font-mono text-xs text-muted-foreground">
-                                  #{idea.ideaNumber}
-                                  {idea.sourceTitle ? (
-                                    <>
-                                      {" · 来源："}
-                                      {idea.sourceUrl ? (
-                                        <a
-                                          href={idea.sourceUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="hover:text-foreground"
-                                        >
-                                          {idea.sourceTitle}
-                                        </a>
-                                      ) : (
-                                        idea.sourceTitle
-                                      )}
-                                    </>
-                                  ) : null}
-                                </span>
-                                <h3 className="text-base font-medium whitespace-pre-wrap">
-                                  {idea.storyAngle ?? "—"}
-                                </h3>
-                              </div>
-                              <IdeaActions
-                                ideaId={idea.id}
-                                state="pending"
-                                accountSlug={slug}
-                                projectSlug={projectSlug}
-                              />
-                            </header>
-
-                            {idea.factsAndData ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                  事实与数据
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap">{idea.factsAndData}</p>
-                              </div>
-                            ) : null}
-
-                            {idea.whySimilar ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                  为什么对标
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap">{idea.whySimilar}</p>
-                              </div>
-                            ) : null}
-
-                            {idea.coverConcept ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                  封面建议
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap">{idea.coverConcept}</p>
-                              </div>
-                            ) : null}
-
-                            {idea.suggestedHookType ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                  建议钩子类型
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap">{idea.suggestedHookType}</p>
-                              </div>
-                            ) : null}
-
-                            {idea.riskFactors ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-amber-700 dark:text-amber-400 uppercase">
-                                  风险提示
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap text-amber-700 dark:text-amber-400">
-                                  {idea.riskFactors}
-                                </p>
-                              </div>
-                            ) : null}
-
-                            {idea.viralTrigger ? (
-                              <div className="flex flex-col gap-1">
-                                <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                  爆款触发因素
-                                </h4>
-                                <p className="text-sm whitespace-pre-wrap">{idea.viralTrigger}</p>
-                              </div>
-                            ) : null}
-                          </article>
-                        </StaggerItem>
-                      ))}
-                    </div>
-                  ))}
-              </div>
+              <PendingIdeaTree
+                groups={pendingGroups}
+                accountSlug={slug}
+                projectSlug={projectSlug}
+              />
             )}
           </section>
 
@@ -512,7 +430,9 @@ export default async function MuseChannelPage({ params }: Props) {
             </span>
           ) : (
             <>
-              <span className="text-xs">Muse 需要至少一个对标账号才能巡视</span>
+              <span className="text-xs">
+                还没有绑定对标 — 也可以点「开始巡视」直接指定内容链接分析
+              </span>
               <Button
                 size="sm"
                 variant="outline"
