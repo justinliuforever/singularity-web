@@ -11,6 +11,8 @@ import postgres from "postgres";
 
 import { pipelineRuns } from "../src/schema/runs";
 import { users } from "../src/schema/users";
+import { channels } from "../src/schema/channels";
+import { competitorAccounts } from "../src/schema/competitor";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../../../.env.local") });
@@ -30,10 +32,14 @@ try {
   const [user] = email
     ? await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
     : [undefined];
+  // The id may name an own channel or a competitor account; the task takes either owner.
+  const [own] = await db.select({ id: channels.id }).from(channels).where(eq(channels.id, channelId)).limit(1);
+  const owner = own ? { channelId } : { competitorAccountId: channelId };
+
   const [run] = await db
     .insert(pipelineRuns)
     .values({
-      channelId,
+      ...owner,
       agent: "clerk",
       command: "clerk-analyze-channel",
       status: "pending",
@@ -47,7 +53,7 @@ try {
       ...(user ? { userId: user.id } : {}),
     })
     .returning({ id: pipelineRuns.id });
-  console.log(JSON.stringify({ runId: run!.id, channelId, userId: user?.id ?? null }));
+  console.log(JSON.stringify({ runId: run!.id, owner, userId: user?.id ?? null }));
 } finally {
   await client.end();
 }
