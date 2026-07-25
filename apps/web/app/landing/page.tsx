@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GooseMark } from "@/components/goose-mark";
+import { GooseWatch } from "@/components/goose-watch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/wordmark";
@@ -61,7 +62,7 @@ export default function LandingPage() {
       </svg>
 
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <span className="flex items-center gap-2 text-xl leading-none">
+        <span className="brand-lockup flex items-center gap-2 text-xl leading-none">
           <GooseMark className="size-6 shrink-0" />
           <Wordmark />
         </span>
@@ -84,11 +85,18 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* The crew, in their own colors: 操盘 / 灵感 / 神笔 */}
+        {/* The crew, in their own colors: 操盘 / 灵感 / 神笔. Each watches the pointer
+            on its own, so all three turn to you rather than moving as one block. */}
         <div className="flex items-end justify-center gap-6 sm:gap-10">
-          <GooseMark tone="clerk" className="splash-goose splash-goose-1 w-16 sm:w-20" />
-          <GooseMark tone="muse" className="splash-goose splash-goose-2 w-16 sm:w-20" />
-          <GooseMark tone="poet" className="splash-goose splash-goose-3 w-16 sm:w-20" />
+          <GooseWatch className="splash-goose splash-goose-1 block">
+            <GooseMark tone="clerk" className="w-16 sm:w-20" />
+          </GooseWatch>
+          <GooseWatch className="splash-goose splash-goose-2 block">
+            <GooseMark tone="muse" className="w-16 sm:w-20" />
+          </GooseWatch>
+          <GooseWatch className="splash-goose splash-goose-3 block">
+            <GooseMark tone="poet" className="w-16 sm:w-20" />
+          </GooseWatch>
         </div>
 
         <div className="grid w-full max-w-3xl gap-4 text-left sm:grid-cols-3">

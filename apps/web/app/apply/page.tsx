@@ -16,7 +16,7 @@ export default function ApplyPage() {
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <Link href="/" className="flex items-center gap-2 text-xl leading-none">
+        <Link href="/" className="brand-lockup flex items-center gap-2 text-xl leading-none">
           <GooseMark className="size-6 shrink-0" />
           <Wordmark />
         </Link>

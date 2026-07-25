@@ -46,7 +46,7 @@ export function AppSidebar({
   return (
     <Sidebar>
       <SidebarHeader className="px-6 pt-10 pb-6">
-        <Link href="/" className="flex items-center gap-2.5 text-2xl leading-none">
+        <Link href="/" className="brand-lockup flex items-center gap-2.5 text-2xl leading-none">
           <GooseMark className="size-7 shrink-0" />
           <Wordmark />
         </Link>

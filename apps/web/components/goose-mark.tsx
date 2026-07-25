@@ -21,7 +21,7 @@ export function GooseMark({
   return (
     <svg
       viewBox="0 0 120 120"
-      className={className}
+      className={`goose-mark${className ? ` ${className}` : ""}`}
       style={TONE[tone]}
       aria-hidden
       focusable="false"
@@ -31,6 +31,7 @@ export function GooseMark({
       <path d="M14 63 q-9 1 -9 9 q7 5 14 -2 z" fill="var(--goose-body)" />
       <ellipse cx="50" cy="72" rx="41" ry="31" fill="var(--goose-body)" />
       <path
+        className="goose-wing"
         d="M33 65 Q52 79 75 67"
         fill="none"
         stroke="var(--goose-wing)"
@@ -46,7 +47,7 @@ export function GooseMark({
       />
       <circle cx="86" cy="28" r="18" fill="var(--goose-body)" />
       <path d="M101 20 L120 28 L101 36 Q97 28 101 20 Z" fill="var(--goose-trim)" />
-      <circle cx="91" cy="23" r="3.1" fill="var(--goose-eye)" />
+      <circle className="goose-eye" cx="91" cy="23" r="3.1" fill="var(--goose-eye)" />
     </svg>
   );
 }

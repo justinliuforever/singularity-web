@@ -176,6 +176,122 @@
   }
 }
 
+/* ── Motion vocabulary ────────────────────────────────────────────────────────
+   A brick-hauling goose is heavy and cannot fly. Every move gathers before it
+   launches and settles when it lands — it never floats. That weight is the whole
+   point; easing these out to a gentle float would make them read as stock hover.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 起跳 — squash, shove off, hang too briefly, absorb the landing. */
+@keyframes goose-hop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  12% {
+    transform: translateY(2%) scale(1.08, 0.86);
+  }
+  32% {
+    transform: translateY(-20%) scale(0.95, 1.08) rotate(-5deg);
+  }
+  46% {
+    transform: translateY(-24%) scale(1, 1.02) rotate(-3deg);
+  }
+  66% {
+    transform: translateY(-6%) scale(1) rotate(1deg);
+  }
+  80% {
+    transform: translateY(0) scale(1.06, 0.9);
+  }
+  92% {
+    transform: translateY(0) scale(0.99, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* The wing flicks once mid-air — it tried. */
+@keyframes goose-wing-flick {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  32% {
+    transform: rotate(-16deg);
+  }
+  56% {
+    transform: rotate(6deg);
+  }
+}
+
+/* 鹅叫 — the four o's lift in sequence, so one long honk travels through the word. */
+@keyframes honk-bob {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  35% {
+    transform: translateY(-0.16em) scaleY(1.07);
+  }
+  70% {
+    transform: translateY(0.02em) scaleY(0.99);
+  }
+}
+
+/* SVG needs transform-box spelled out or percentage origins collapse to 0 0, which
+   pivots the hop from the top-left corner instead of the feet. */
+.goose-mark {
+  /* The outer <svg> is a replaced element, so its box — not the viewBox — is the
+     reference; view-box here resolves to 0 0 and pivots from the corner. */
+  transform-box: border-box;
+  transform-origin: 46% 92%; /* the feet — squash has to read from the ground up */
+}
+.goose-wing {
+  transform-box: view-box;
+  transform-origin: 28% 55%; /* where the wing meets the body */
+}
+/* 注视 — offsets are in viewBox units, so the glance scales with the goose. */
+.goose-eye {
+  transform: translate(calc(var(--goose-look-x, 0) * 1px), calc(var(--goose-look-y, 0) * 1px));
+  transition: transform 140ms ease-out;
+}
+
+.brand-lockup:hover .goose-mark,
+.goose-mark:hover {
+  animation: goose-hop 560ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.brand-lockup:hover .goose-wing,
+.goose-mark:hover .goose-wing {
+  animation: goose-wing-flick 560ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.brand-lockup:hover .honk-o,
+.wordmark:hover .honk-o {
+  animation: honk-bob 420ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.honk-o:nth-child(2) {
+  animation-delay: 55ms;
+}
+.honk-o:nth-child(3) {
+  animation-delay: 110ms;
+}
+.honk-o:nth-child(4) {
+  animation-delay: 165ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-lockup:hover .goose-mark,
+  .goose-mark:hover,
+  .brand-lockup:hover .goose-wing,
+  .goose-mark:hover .goose-wing,
+  .brand-lockup:hover .honk-o,
+  .wordmark:hover .honk-o {
+    animation: none;
+  }
+  .goose-eye {
+    transform: none;
+  }
+}
+
 @keyframes splash-goose-in {
   from {
     opacity: 0;

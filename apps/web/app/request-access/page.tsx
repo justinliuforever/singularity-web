@@ -2,6 +2,7 @@ import { signOut } from "@logto/next/server-actions";
 import { redirect } from "next/navigation";
 
 import { GooseMark } from "@/components/goose-mark";
+import { GooseWatch } from "@/components/goose-watch";
 import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/wordmark";
 import { logtoConfig } from "@/lib/logto";
@@ -24,10 +25,14 @@ export default async function RequestAccessPage({
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-8 p-8">
       <div className="flex flex-col items-center gap-2 text-center">
-        <GooseMark className="w-16" />
-        <span className="text-3xl leading-none">
-          <Wordmark />
-        </span>
+        <div className="brand-lockup flex flex-col items-center gap-2">
+          <GooseWatch className="block">
+            <GooseMark className="w-16" />
+          </GooseWatch>
+          <span className="text-3xl leading-none">
+            <Wordmark />
+          </span>
+        </div>
         <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
           {APP_VERSION_LABEL}
         </span>
