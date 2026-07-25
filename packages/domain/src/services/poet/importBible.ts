@@ -35,9 +35,16 @@ export async function generateBibleFromDocument(
     language: args.language,
   });
   // Pro-first: fidelity restructuring needs the stronger model (bake-off: 0 digit violations).
-  let { text: content } = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.3 });
+  let { text: content, finishReason } = await generateTextWithFallback({
+    prompt,
+    maxOutputTokens: 16384,
+    temperature: 0.3,
+  });
   content = content.trim();
   if (!content) throw new Error("Bible generation returned empty content");
+  // A length-capped bible loses its trailing anchors (TOPIC_FRAMEWORK / FACT_SHEET) silently,
+  // so flag it — the flag is what parks the bible for review instead of auto-activating it.
+  let truncated = finishReason === "length";
   await onProgress?.(content.length);
 
   content = await redactUngrounded({
@@ -67,6 +74,7 @@ export async function generateBibleFromDocument(
           logger: args.logger,
         });
         violations = [...digitTokens(content)].filter((n) => !transcriptDigits.has(n));
+        truncated = retry.finishReason === "length";
       }
     }
   }
@@ -83,7 +91,20 @@ export async function generateBibleFromDocument(
         type: "audit",
         detail: `数字审计：${violations.length} 个数字无法在转写中找到，包含它们的 ${lines.length - kept.length} 行已移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
       });
+    } else {
+      // Anchor/TOPIC/HOST lines are never dropped, so a violation confined to them removes
+      // nothing — without this branch the bible would activate as if the audit had passed.
+      flags.push({
+        type: "audit_source",
+        detail: `数字审计：${violations.length} 个数字无法在转写中找到，但它们位于标题或章节行，未自动移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
+      });
     }
+  }
+  if (truncated) {
+    flags.push({
+      type: "truncated",
+      detail: "圣经生成达到输出上限，末尾章节（选题框架 / 事实表）可能缺失；请对照原文件确认后补充",
+    });
   }
 
   const topicClaimed = extractTopicLine(content);

@@ -83,12 +83,16 @@ export async function transcribePdf(
   }
 }
 
+const PDF_VERIFY_CHARS = 30_000;
+
 // Numbers-only second look for scanned PDFs (no text layer to cross-check against).
+// Reports how much it actually covered: a silent [] would be indistinguishable from a clean pass.
 export async function verifyPdfNumbers(
   pdfBytes: Uint8Array,
   transcript: string,
   logger?: Logger,
-): Promise<string[]> {
+): Promise<{ diffs: string[]; checked: "full" | "partial" | "failed" }> {
+  const checked = transcript.length > PDF_VERIFY_CHARS ? "partial" : "full";
   try {
     const r = await generateText({
       model: model(),
@@ -102,21 +106,24 @@ export async function verifyPdfNumbers(
             { type: "file", data: pdfBytes, mediaType: "application/pdf" },
             {
               type: "text",
-              text: `下面是这份 PDF 的一份转写。只核对数字（金额、年份、坐标、剂量、百分比、数量）：逐一对照原文，列出转写中与原文不一致或原文中不存在的数字，每行一个，格式「转写值 -> 原文实际值」（原文中不存在则写「转写值 -> 无」）。全部一致则只输出 OK。\n\n## 转写\n${transcript.slice(0, 30000)}`,
+              text: `下面是这份 PDF 的一份转写。只核对数字（金额、年份、坐标、剂量、百分比、数量）：逐一对照原文，列出转写中与原文不一致或原文中不存在的数字，每行一个，格式「转写值 -> 原文实际值」（原文中不存在则写「转写值 -> 无」）。全部一致则只输出 OK。\n\n## 转写\n${transcript.slice(0, PDF_VERIFY_CHARS)}`,
             },
           ],
         },
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return [];
-    return out
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l !== "OK");
+    if (!out || out === "OK") return { diffs: [], checked };
+    return {
+      diffs: out
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && l !== "OK"),
+      checked,
+    };
   } catch (err) {
     logger?.warn?.(`verifyPdfNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
-    return [];
+    return { diffs: [], checked: "failed" };
   }
 }
 
@@ -187,8 +194,10 @@ export async function verifyImageNumbers(
   }
 }
 
+// "audit" means the offending lines were removed; "audit_source" means the suspect numbers are
+// still in the bible — the two must stay distinct or the review card tells the user the wrong thing.
 export type ImportFlag = {
-  type: "illegible" | "truncated" | "audit" | "image_failed";
+  type: "illegible" | "truncated" | "audit" | "audit_source" | "image_failed";
   detail: string;
   context?: string;
   resolved?: boolean;
@@ -341,15 +350,25 @@ async function transcribePdfDocument(
     const suspect = [...digitTokens(withoutMarkers)].filter((n) => !layerDigits.has(n));
     if (suspect.length > 0) {
       flags.push({
-        type: "audit",
+        type: "audit_source",
         detail: `转写中 ${suspect.length} 个数字未在 PDF 文本层找到，可能识别有误：${suspect.slice(0, 10).join(", ")}${suspect.length > 10 ? "…" : ""}`,
       });
     }
   } else {
     // Scanned: no text layer, so verify the numbers against the document itself.
-    const diffs = await verifyPdfNumbers(bytes, transcript, logger);
+    const { diffs, checked } = await verifyPdfNumbers(bytes, transcript, logger);
     for (const d of diffs.slice(0, 20)) {
-      flags.push({ type: "audit", detail: `扫描件数字复核不一致：${d}` });
+      flags.push({ type: "audit_source", detail: `扫描件数字复核不一致：${d}` });
+    }
+    // An unchecked or partially-checked scan must not look like a clean audit.
+    if (checked !== "full") {
+      flags.push({
+        type: "audit_source",
+        detail:
+          checked === "failed"
+            ? "扫描件数字复核未能完成（核对调用失败），文中数字未经与原件比对，请自行核对"
+            : `扫描件数字复核只覆盖了前 ${PDF_VERIFY_CHARS.toLocaleString("en-US")} 字，其后的数字未与原件比对，请自行核对`,
+      });
     }
   }
   return transcript;

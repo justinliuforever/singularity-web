@@ -107,6 +107,7 @@ export type WriteScriptArgs = {
   hostName?: string | null;
   // Extra grounding-only source (import transcript) — never enters the writing prompt.
   groundingSource?: string | null;
+  logger?: { info?: (m: string) => void; warn?: (m: string) => void };
 };
 
 export type ScriptResult = {
@@ -407,7 +408,10 @@ export async function writeScript(
     source,
     language: args.language,
     mode: "script",
-    tier: "fallback", // Pro-first: catches factual errors (e.g. wrong product year) a script asserts.
+    // Pro-first catches factual errors a script asserts, but a reasoning model spends the output
+    // budget on reasoning and truncates long drafts — which discards the whole pass. Flash for those.
+    tier: result.path === "long" ? "flash" : "fallback",
+    logger: args.logger,
   });
   if (grounded && grounded !== result.scriptText) {
     result = { ...result, scriptText: grounded, wordCount: countWords(grounded, args.language) };
