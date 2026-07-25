@@ -210,8 +210,8 @@ export function BibleGenerateSheet({
 
           <p className="rounded-md bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
             {mode === "idea"
-              ? "AI 会基于你的描述推断并补全成完整框架（受众、人设、内容方向等）——给的信息越少，AI 推断补充的部分越多。"
-              : "逐字保留文档内容，只归类整理、不改写不总结；每个数字都会与原文核对，存疑处生成后需要你逐项确认。"}
+              ? "AI 只顺着你写的内容展开：你没提到的章节（受众、人设、方法论等）会留空，不会替你编——描述越具体，圣经越完整。"
+              : "AI 会转写文档（含扫描件与表格截图）并重构成一份策略简报：数字与专有名词逐字保留并核对，但不是全文照搬——超出篇幅的明细会取舍。存疑处生成后需要你逐项确认。"}
           </p>
 
           <FieldGroup>
@@ -284,9 +284,6 @@ export function BibleGenerateSheet({
                     onChange={(e) => pickFile(e.target.files?.[0])}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  AI 会逐字转写文档（含扫描件与表格截图）并重构为频道圣经；数字与专有名词经多重核对，存疑处会列出请你确认
-                </p>
                 {importing ? (
                   <div className="flex flex-col gap-1">
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
