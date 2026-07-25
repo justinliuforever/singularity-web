@@ -95,10 +95,13 @@
   --muted-foreground: #6b6a62;
   --accent: #e8e6dc;
   --accent-foreground: #141413;
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Darkened for the cream ground: the old value is 4.10:1 on --background, and form
+     errors render directly on it. 4.74:1 now. */
+  --destructive: #d40009;
   --border: #14141318;
   --input: #14141426;
-  --ring: #d97757;
+  /* Coral fill is 2.68:1 on --background — under the 3:1 a focus indicator needs. */
+  --ring: #b8563a;
   --chart-1: #d97757;
   --chart-2: #6a9bcc;
   --chart-3: #788c5d;
@@ -256,33 +259,33 @@
   transition: transform 140ms ease-out;
 }
 
-.brand-lockup:hover .goose-mark,
-.goose-mark:hover {
+/* Hover only from a non-transforming ancestor: the hop moves the element's hit box, so
+   hovering the mark itself drops the hover, snaps it back under the pointer, and retriggers. */
+.brand-lockup:hover .goose-mark {
   animation: goose-hop 560ms cubic-bezier(0.3, 0.7, 0.3, 1);
 }
-.brand-lockup:hover .goose-wing,
-.goose-mark:hover .goose-wing {
+.brand-lockup:hover .goose-wing {
   animation: goose-wing-flick 560ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+/* The delay rides a custom property because the `animation` shorthand below resets
+   animation-delay, and its selector outranks any .honk-o:nth-child() rule. */
+.honk-o:nth-child(2) {
+  --honk-delay: 55ms;
+}
+.honk-o:nth-child(3) {
+  --honk-delay: 110ms;
+}
+.honk-o:nth-child(4) {
+  --honk-delay: 165ms;
 }
 .brand-lockup:hover .honk-o,
 .wordmark:hover .honk-o {
-  animation: honk-bob 420ms cubic-bezier(0.34, 1.4, 0.5, 1);
-}
-.honk-o:nth-child(2) {
-  animation-delay: 55ms;
-}
-.honk-o:nth-child(3) {
-  animation-delay: 110ms;
-}
-.honk-o:nth-child(4) {
-  animation-delay: 165ms;
+  animation: honk-bob 420ms cubic-bezier(0.34, 1.4, 0.5, 1) var(--honk-delay, 0ms) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .brand-lockup:hover .goose-mark,
-  .goose-mark:hover,
   .brand-lockup:hover .goose-wing,
-  .goose-mark:hover .goose-wing,
   .brand-lockup:hover .honk-o,
   .wordmark:hover .honk-o {
     animation: none;
@@ -430,8 +433,11 @@
 .sop-toc-link:hover {
   @apply border-clerk/40 bg-muted/40 text-foreground lg:border-transparent;
 }
+/* No tint: the 10px .sop-toc-num inside clears AA on the bare card but only reaches 4.3:1
+   over a bg-clerk/10 wash — and the active row is the one the reader is actually on. The
+   border and font-medium carry the state. */
 .sop-toc-link[data-active] {
-  @apply border-clerk/40 bg-clerk/10 font-medium text-foreground lg:border-transparent lg:bg-clerk/10;
+  @apply border-clerk/40 font-medium text-foreground lg:border-transparent lg:bg-muted/50;
 }
 .sop-toc-num {
   @apply font-mono text-[10px] text-clerk-deep;

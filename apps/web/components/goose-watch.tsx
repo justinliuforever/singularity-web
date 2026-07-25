@@ -9,9 +9,12 @@ import { useEffect, useRef } from "react";
 // Offsets are viewBox units (see .goose-eye), so the glance scales with the goose
 // and reads the same at 64px or 200px. Reserve it for geese large enough to show
 // it — on a 28px sidebar mark it is noise while someone is trying to work.
-const REACH_PX = 420; // pointer distance at which the glance is fully extended
-const MAX_X = 2.4;
-const MAX_Y = 1.7;
+// Ramp over a short distance, not a screen-width one: scaling the offset by pointer
+// proximity made the glance vanish exactly where someone looks for it, and 2.4 viewBox
+// units is 1.3px at the 64px these render at. The eye is r=3.1, so ±4.5 stays in the head.
+const REACH_PX = 120; // pointer distance at which the glance is fully extended
+const MAX_X = 4.5;
+const MAX_Y = 3.2;
 
 export function GooseWatch({
   children,

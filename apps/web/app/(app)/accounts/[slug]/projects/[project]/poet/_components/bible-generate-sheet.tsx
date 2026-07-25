@@ -261,7 +261,7 @@ export function BibleGenerateSheet({
                 >
                   {file ? (
                     <>
-                      <FileText className="size-6 text-poet" />
+                      <FileText className="size-6 text-poet-deep" />
                       <span className="max-w-full truncate font-medium">{file.name}</span>
                       <span className="text-xs text-muted-foreground">
                         {formatBytes(file.size)} · 点击更换

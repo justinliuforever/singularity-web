@@ -111,9 +111,9 @@ export function ClerkPipelineProgress({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {allDone ? (
-            <Check className="size-4.5 shrink-0 text-clerk" />
+            <Check className="size-4.5 shrink-0 text-clerk-deep" />
           ) : (
-            <Loader2 className="size-4 shrink-0 animate-spin text-clerk" />
+            <Loader2 className="size-4 shrink-0 animate-spin text-clerk-deep" />
           )}
           <span className="text-sm font-medium text-foreground">
             {allDone ? "分析完成" : phase ? "分析中" : "准备中…"}
@@ -178,9 +178,9 @@ export function ClerkPipelineProgress({
               <div className="flex items-center gap-2.5">
                 <span className="inline-flex size-5 shrink-0 items-center justify-center">
                   {isDone ? (
-                    <Check className="size-4 text-clerk" />
+                    <Check className="size-4 text-clerk-deep" />
                   ) : isCurrent ? (
-                    <Loader2 className="size-4 animate-spin text-clerk" />
+                    <Loader2 className="size-4 animate-spin text-clerk-deep" />
                   ) : (
                     <span className="size-2.5 rounded-full border border-muted-foreground/40" />
                   )}

@@ -63,9 +63,17 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
           看对标 → 出选题 → 写稿
         </p>
         <div className="flex items-end justify-center gap-6 sm:gap-8">
-          <GooseMark tone="clerk" className="splash-goose splash-goose-1 w-14 sm:w-16" />
-          <GooseMark tone="muse" className="splash-goose splash-goose-2 w-14 sm:w-16" />
-          <GooseMark tone="poet" className="splash-goose splash-goose-3 w-14 sm:w-16" />
+          {/* brand-lockup goes on the wrapper, not the mark: the hop transforms the mark and
+              would drop its own hover. */}
+          <span className="brand-lockup splash-goose splash-goose-1 block">
+            <GooseMark tone="clerk" className="w-14 sm:w-16" />
+          </span>
+          <span className="brand-lockup splash-goose splash-goose-2 block">
+            <GooseMark tone="muse" className="w-14 sm:w-16" />
+          </span>
+          <span className="brand-lockup splash-goose splash-goose-3 block">
+            <GooseMark tone="poet" className="w-14 sm:w-16" />
+          </span>
         </div>
         <div className="flex gap-2">
           <span className="splash-dot splash-dot-1 size-2 rounded-full bg-clerk" />

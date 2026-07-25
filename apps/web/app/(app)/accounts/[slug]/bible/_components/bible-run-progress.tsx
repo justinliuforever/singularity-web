@@ -205,7 +205,7 @@ function ProgressCard({
           ) : null}
         </span>
       </div>
-      <AgentTimeline stages={BIBLE_STAGES} currentPhase={progress?.phase} accentClass="text-poet" />
+      <AgentTimeline stages={BIBLE_STAGES} currentPhase={progress?.phase} accentClass="text-poet-deep" />
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         {progress?.phase === "transcribing document" && (progress?.total ?? 0) > 1 ? (
           <div

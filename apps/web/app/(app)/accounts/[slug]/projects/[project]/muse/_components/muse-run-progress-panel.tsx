@@ -203,9 +203,9 @@ export function MuseRunProgressPanel({
         <div className="flex items-center justify-between gap-3">
           <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
             {done ? (
-              <SuccessCheck className="size-3.5 text-muse" />
+              <SuccessCheck className="size-3.5 text-muse-deep" />
             ) : (
-              <Loader2 className="size-3.5 animate-spin text-muse" />
+              <Loader2 className="size-3.5 animate-spin text-muse-deep" />
             )}
             <span className="truncate">{phaseLabel}</span>
             {done ? null : (
@@ -243,7 +243,7 @@ export function MuseRunProgressPanel({
           </span>
         </div>
 
-        <AgentTimeline stages={MUSE_STAGES} currentPhase={phase} accentClass="text-muse" />
+        <AgentTimeline stages={MUSE_STAGES} currentPhase={phase} accentClass="text-muse-deep" />
 
         {total > 0 || done ? (
           <div className="flex flex-col gap-1">
@@ -342,7 +342,7 @@ function CurrentItemCard({
   return (
     <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
       <div className="flex items-center gap-2">
-        <Loader2 className="size-3 animate-spin text-muse" />
+        <Loader2 className="size-3 animate-spin text-muse-deep" />
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           正在分析
         </span>

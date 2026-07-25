@@ -88,13 +88,13 @@ export default function LandingPage() {
         {/* The crew, in their own colors: 操盘 / 灵感 / 神笔. Each watches the pointer
             on its own, so all three turn to you rather than moving as one block. */}
         <div className="flex items-end justify-center gap-6 sm:gap-10">
-          <GooseWatch className="splash-goose splash-goose-1 block">
+          <GooseWatch className="brand-lockup splash-goose splash-goose-1 block">
             <GooseMark tone="clerk" className="w-16 sm:w-20" />
           </GooseWatch>
-          <GooseWatch className="splash-goose splash-goose-2 block">
+          <GooseWatch className="brand-lockup splash-goose splash-goose-2 block">
             <GooseMark tone="muse" className="w-16 sm:w-20" />
           </GooseWatch>
-          <GooseWatch className="splash-goose splash-goose-3 block">
+          <GooseWatch className="brand-lockup splash-goose splash-goose-3 block">
             <GooseMark tone="poet" className="w-16 sm:w-20" />
           </GooseWatch>
         </div>

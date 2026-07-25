@@ -11,7 +11,7 @@ type Props = {
   stages: Stage[];
   currentPhase: string | undefined;
   allDone?: boolean;
-  /** Tailwind text color class, e.g. "text-clerk" / "text-muse" / "text-poet". */
+  /** Tailwind text color class, e.g. "text-clerk-deep" / "text-muse-deep" / "text-poet-deep". */
   accentClass?: string;
 };
 
