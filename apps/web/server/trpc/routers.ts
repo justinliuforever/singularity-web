@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auth, runs, tasks } from "@trigger.dev/sdk";
+import { runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 import { createHash } from "node:crypto";
@@ -1212,46 +1212,6 @@ export const appRouter = router({
   }),
 
   pipeline: router({
-    listActive: protectedProcedure
-      .input(
-        z
-          .object({
-            channelId: z.string().uuid().optional(),
-            competitorAccountId: z.string().uuid().optional(),
-          })
-          .refine((v) => (v.channelId == null) !== (v.competitorAccountId == null), {
-            message: "exactly one owner",
-          }),
-      )
-      .query(async ({ ctx, input }) => {
-        const ownerCond = input.channelId
-          ? eq(pipelineRuns.channelId, input.channelId)
-          : eq(pipelineRuns.competitorAccountId, input.competitorAccountId!);
-        return db
-          .select({
-            id: pipelineRuns.id,
-            agent: pipelineRuns.agent,
-            command: pipelineRuns.command,
-            status: pipelineRuns.status,
-            startedAt: pipelineRuns.startedAt,
-            progress: pipelineRuns.progress,
-            total: pipelineRuns.total,
-            configJson: pipelineRuns.configJson,
-          })
-          .from(pipelineRuns)
-          .leftJoin(channels, eq(channels.id, pipelineRuns.channelId))
-          .leftJoin(competitorAccounts, eq(competitorAccounts.id, pipelineRuns.competitorAccountId))
-          .where(
-            and(
-              ownerCond,
-              or(eq(channels.userId, ctx.user.id), eq(competitorAccounts.userId, ctx.user.id)),
-              inArray(pipelineRuns.status, ["pending", "running"]),
-              freshActiveRunCond(),
-            ),
-          )
-          .orderBy(desc(pipelineRuns.startedAt));
-      }),
-
     // All active runs across the user's channels AND competitors — global header indicator.
     listActiveAll: protectedProcedure.query(async ({ ctx }) => {
       return db
@@ -1445,58 +1405,6 @@ export const appRouter = router({
           config,
           payload: config,
         });
-      }),
-
-    // Reissues a scoped token so the client can re-attach useRealtimeRun after a page refresh.
-    activeRun: protectedProcedure
-      .input(
-        z
-          .object({
-            channelId: z.string().uuid().optional(),
-            competitorAccountId: z.string().uuid().optional(),
-          })
-          .refine((v) => (v.channelId == null) !== (v.competitorAccountId == null), {
-            message: "exactly one owner",
-          }),
-      )
-      .query(async ({ ctx, input }) => {
-        const ownerCond = input.channelId
-          ? eq(pipelineRuns.channelId, input.channelId)
-          : eq(pipelineRuns.competitorAccountId, input.competitorAccountId!);
-        const [active] = await db
-          .select({
-            id: pipelineRuns.id,
-            configJson: pipelineRuns.configJson,
-          })
-          .from(pipelineRuns)
-          .leftJoin(channels, eq(channels.id, pipelineRuns.channelId))
-          .leftJoin(competitorAccounts, eq(competitorAccounts.id, pipelineRuns.competitorAccountId))
-          .where(
-            and(
-              ownerCond,
-              or(eq(channels.userId, ctx.user.id), eq(competitorAccounts.userId, ctx.user.id)),
-              inArray(pipelineRuns.status, ["pending", "running"]),
-              freshActiveRunCond(),
-            ),
-          )
-          .orderBy(desc(pipelineRuns.startedAt))
-          .limit(1);
-
-        if (!active) return null;
-        const triggerRunId = (active.configJson as { triggerRunId?: string } | null)
-          ?.triggerRunId;
-        if (!triggerRunId) return null;
-
-        const token = await auth.createPublicToken({
-          scopes: { read: { runs: [triggerRunId] } },
-          expirationTime: "1h",
-        });
-
-        return {
-          runId: active.id,
-          triggerRunId,
-          publicAccessToken: token,
-        };
       }),
 
     runStatus: protectedProcedure
@@ -1760,83 +1668,6 @@ export const appRouter = router({
             contentFilter,
           },
         });
-      }),
-
-    activeRun: protectedProcedure
-      .input(z.object({ channelId: z.string().uuid() }))
-      .query(async ({ ctx, input }) => {
-        const [active] = await db
-          .select({ id: pipelineRuns.id, configJson: pipelineRuns.configJson })
-          .from(pipelineRuns)
-          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
-          .where(
-            and(
-              eq(pipelineRuns.channelId, input.channelId),
-              eq(channels.userId, ctx.user.id),
-              eq(pipelineRuns.agent, "muse"),
-              inArray(pipelineRuns.status, ["pending", "running"]),
-              freshActiveRunCond(),
-            ),
-          )
-          .orderBy(desc(pipelineRuns.startedAt))
-          .limit(1);
-
-        if (!active) return null;
-        const triggerRunId = (active.configJson as { triggerRunId?: string } | null)?.triggerRunId;
-        if (!triggerRunId) return null;
-
-        const token = await auth.createPublicToken({
-          scopes: { read: { runs: [triggerRunId] } },
-          expirationTime: "1h",
-        });
-        return { runId: active.id, triggerRunId, publicAccessToken: token };
-      }),
-
-    cancelRun: protectedProcedure
-      .input(z.object({ channelId: z.string().uuid() }))
-      .mutation(async ({ ctx, input }) => {
-        const [active] = await db
-          .select({
-            id: pipelineRuns.id,
-            configJson: pipelineRuns.configJson,
-          })
-          .from(pipelineRuns)
-          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
-          .where(
-            and(
-              eq(pipelineRuns.channelId, input.channelId),
-              eq(channels.userId, ctx.user.id),
-              eq(pipelineRuns.agent, "muse"),
-              inArray(pipelineRuns.status, ["pending", "running"]),
-            ),
-          )
-          .orderBy(desc(pipelineRuns.startedAt))
-          .limit(1);
-        if (!active) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "没有正在运行的巡视" });
-        }
-
-        const triggerRunId = (active.configJson as { triggerRunId?: string } | null)?.triggerRunId;
-        // Trigger.dev side may already be terminal (MAX_DURATION_EXCEEDED, CRASHED); swallow.
-        if (triggerRunId) {
-          try {
-            await runs.cancel(triggerRunId);
-          } catch {
-            /* ignored */
-          }
-        }
-
-        await db
-          .update(pipelineRuns)
-          .set({
-            status: "failed",
-            errorMessage: "用户取消（或运行卡死）",
-            completedAt: new Date(),
-          })
-          .where(eq(pipelineRuns.id, active.id));
-        await refundRunQuota(db, active.id).catch(() => {});
-
-        return { runId: active.id, cancelled: true };
       }),
 
     approveIdea: protectedProcedure
@@ -2197,50 +2028,6 @@ export const appRouter = router({
             durationSeconds: input.durationSeconds,
           },
         });
-      }),
-
-    activeRun: protectedProcedure
-      .input(z.object({ channelId: z.string().uuid() }))
-      .query(async ({ ctx, input }) => {
-        const [active] = await db
-          .select({
-            id: pipelineRuns.id,
-            configJson: pipelineRuns.configJson,
-            command: pipelineRuns.command,
-          })
-          .from(pipelineRuns)
-          .innerJoin(channels, eq(channels.id, pipelineRuns.channelId))
-          .where(
-            and(
-              eq(pipelineRuns.channelId, input.channelId),
-              eq(channels.userId, ctx.user.id),
-              eq(pipelineRuns.agent, "poet"),
-              inArray(pipelineRuns.status, ["pending", "running"]),
-              freshActiveRunCond(),
-            ),
-          )
-          .orderBy(desc(pipelineRuns.startedAt))
-          .limit(1);
-
-        if (!active) return null;
-        const triggerRunId = (active.configJson as { triggerRunId?: string } | null)?.triggerRunId;
-        if (!triggerRunId) return null;
-
-        const token = await auth.createPublicToken({
-          scopes: { read: { runs: [triggerRunId] } },
-          expirationTime: "1h",
-        });
-        return {
-          runId: active.id,
-          triggerRunId,
-          publicAccessToken: token,
-          kind:
-            active.command === "poet-generate-bible"
-              ? ("bible" as const)
-              : active.command === "poet-analyze-custom-topic"
-                ? ("analyze" as const)
-                : ("script" as const),
-        };
       }),
 
     listCustomTopics: protectedProcedure
