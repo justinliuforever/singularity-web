@@ -4,7 +4,7 @@ import { and, eq, inArray, isNull, ne, notInArray } from "drizzle-orm";
 import {
   channels,
   competitorAccounts,
-  consumeMinutes,
+  settleRunMinutes,
   videoMinutes,
   flushProxyPool,
   loadProxyPool,
@@ -743,11 +743,7 @@ export const monitorCompetitors = task({
           .from(museMonitorVideos)
           .where(eq(museMonitorVideos.runId, payload.runId));
         const minutes = processed.reduce((s, v) => s + videoMinutes(v.durationSec), 0);
-        await consumeMinutes(db, { userId: payload.userId, amount: minutes });
-        await db
-          .update(pipelineRuns)
-          .set({ quotaCharged: minutes })
-          .where(eq(pipelineRuns.id, payload.runId));
+        await settleRunMinutes(db, { runId: payload.runId, userId: payload.userId, minutes });
       }
 
       await db

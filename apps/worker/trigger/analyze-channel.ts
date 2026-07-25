@@ -8,7 +8,7 @@ import {
   clerkSops,
   clerkVideos,
   competitorAccounts,
-  consumeMinutes,
+  settleRunMinutes,
   videoMinutes,
   flushProxyPool,
   loadProxyPool,
@@ -2056,12 +2056,7 @@ export const analyzeChannel = task({
           .from(clerkVideos)
           .where(eq(clerkVideos.runId, payload.runId));
         const minutes = processed.reduce((s, v) => s + videoMinutes(v.durationSec), 0);
-        await consumeMinutes(db, { userId: payload.userId, amount: minutes });
-        // Record what was charged so ops sees it and a post-settle crash refunds the right amount.
-        await db
-          .update(pipelineRuns)
-          .set({ quotaCharged: minutes })
-          .where(eq(pipelineRuns.id, payload.runId));
+        await settleRunMinutes(db, { runId: payload.runId, userId: payload.userId, minutes });
       }
 
       await db

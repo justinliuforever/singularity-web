@@ -93,6 +93,32 @@ export async function consumeMinutes(
     });
 }
 
+// End-of-run settle for content tasks, shared by analyze-channel and monitor-competitors.
+// Charges the DELTA against whatever the row already carries, so it stays correct if a
+// task ever charges up front, and claims the row BEFORE consuming: a failure between the
+// two then under-charges rather than leaving a charge no refund can find.
+export async function settleRunMinutes(
+  db: AnyDb,
+  args: { runId: string; userId: string; minutes: number },
+): Promise<number> {
+  const [current] = await db
+    .select({ charged: pipelineRuns.quotaCharged })
+    .from(pipelineRuns)
+    .where(eq(pipelineRuns.id, args.runId))
+    .limit(1);
+  const prev = current?.charged ?? 0;
+  const delta = args.minutes - prev;
+  if (delta <= 0) return 0;
+  const [claimed] = await db
+    .update(pipelineRuns)
+    .set({ quotaCharged: args.minutes })
+    .where(and(eq(pipelineRuns.id, args.runId), eq(pipelineRuns.quotaCharged, prev)))
+    .returning({ id: pipelineRuns.id });
+  if (!claimed) return 0;
+  await consumeMinutes(db, { userId: args.userId, amount: delta });
+  return delta;
+}
+
 // Code-granted minutes live on the current period row and expire with it.
 export async function grantMinutes(
   db: AnyDb,
