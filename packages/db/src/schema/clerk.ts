@@ -47,6 +47,10 @@ export const clerkVideos = pgTable(
     thumbnailWhyItWorks: text("thumbnail_why_it_works"),
     coverDiagnosis: text("cover_diagnosis"),
     coverTitleSuggestions: jsonb("cover_title_suggestions").$type<string[]>(),
+    // Explicit provenance. Inferring "vision ran" from coverDiagnosis/coverTitleSuggestions
+    // was wrong: the multi-image path never returns title suggestions and diagnosis is
+    // legitimately null for a clean cover, so real reads were reported as "no analysis".
+    coverVisionAt: timestamp("cover_vision_at", { withTimezone: true }),
     openingHook: text("opening_hook"),
     openingHookType: text("opening_hook_type"),
     hooksThroughout: text("hooks_throughout"),

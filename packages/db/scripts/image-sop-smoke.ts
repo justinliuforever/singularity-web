@@ -80,7 +80,6 @@ async function runCase(label: string, row: typeof clerkVideos.$inferSelect, expe
     coverTitleSuggestions: row.coverTitleSuggestions,
     analysisSummary: summarizeAnalysis(row),
     commentsSummary: null,
-    language: "zh",
   });
 
   for (let i = 1; i <= SAMPLES; i++) {

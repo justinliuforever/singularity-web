@@ -54,9 +54,11 @@ export default async function AccountDetailPage({ params }: Props) {
   const unit = PLATFORM_CONTENT_UNIT[channel.platform];
   const itemNoun = `${unit.measure}${unit.noun}`;
   const activeBible = activeBibleRows.find((b) => b.isActive) ?? null;
-  const awaitingReview = activeBibleRows.filter(
-    (b) => !b.isActive && (b.importFlags ?? []).some((f) => !f.resolved),
-  );
+  // "A bible exists but none is live" — keying on open flags instead dropped the page back
+  // to the 先生成 empty state the moment the last flag was confirmed, i.e. the exact point
+  // the user was told activation was now possible.
+  const parked = activeBible ? [] : activeBibleRows;
+  const parkedUnresolved = parked.filter((b) => (b.importFlags ?? []).some((f) => !f.resolved));
   const activeBibleRun =
     poetRun && ["poet-generate-bible", "poet-import-bible"].includes(poetRun.command)
       ? poetRun
@@ -138,22 +140,23 @@ export default async function AccountDetailPage({ params }: Props) {
 
         {/* A parked import is a finished run the account page used to render as "nothing
             happened" — it needs a surface here, not only on the bible page. */}
-        {awaitingReview.length > 0 ? (
+        {parked.length > 0 ? (
           <Link href={`/accounts/${a}/bible`}>
             <Card className="border-amber-500/50 transition-colors hover:bg-muted/50">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  {awaitingReview[0]!.name}
+                  {parked[0]!.name}
                   <Badge variant="warning" className="text-[10px]">
-                    待确认
+                    {parkedUnresolved.length > 0 ? "待确认" : "待启用"}
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  圣经已生成
-                  {awaitingReview.length > 1 ? `（共 ${awaitingReview.length} 份）` : ""}
-                  ，还有存疑项需要你逐项确认，确认后才会生效。点击去确认 →
+                  圣经已生成{parked.length > 1 ? `（共 ${parked.length} 份）` : ""}，
+                  {parkedUnresolved.length > 0
+                    ? "还有存疑项需要你逐项确认，确认后才会生效。点击去确认 →"
+                    : "还没有启用。点击去启用 →"}
                 </p>
               </CardContent>
             </Card>
@@ -178,7 +181,7 @@ export default async function AccountDetailPage({ params }: Props) {
               </CardContent>
             </Card>
           </Link>
-        ) : awaitingReview.length > 0 ? null : (
+        ) : parked.length > 0 ? null : (
           <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed bg-card/40 p-6">
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">先生成这个账号的频道圣经</span>

@@ -115,7 +115,17 @@ export async function settleRunMinutes(
     .where(and(eq(pipelineRuns.id, args.runId), eq(pipelineRuns.quotaCharged, prev)))
     .returning({ id: pipelineRuns.id });
   if (!claimed) return 0;
-  await consumeMinutes(db, { userId: args.userId, amount: delta });
+  try {
+    await consumeMinutes(db, { userId: args.userId, amount: delta });
+  } catch (err) {
+    // The row already says charged; leaving it there would let a later refund return
+    // minutes that were never taken. Put it back before rethrowing.
+    await db
+      .update(pipelineRuns)
+      .set({ quotaCharged: prev })
+      .where(eq(pipelineRuns.id, args.runId));
+    throw err;
+  }
   return delta;
 }
 

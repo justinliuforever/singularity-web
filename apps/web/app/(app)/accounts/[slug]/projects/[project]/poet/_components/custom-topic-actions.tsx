@@ -25,6 +25,8 @@ type Props = {
   status: "draft" | "analyzed" | "scripted";
   hasActiveBible: boolean;
   hasSop?: boolean;
+  // Another poet run holds the account-wide lock; starting would be rejected server-side.
+  lockedReason?: string;
 };
 
 const DURATIONS = [
@@ -45,6 +47,7 @@ export function CustomTopicActions({
   status,
   hasActiveBible,
   hasSop = true,
+  lockedReason,
 }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -123,7 +126,7 @@ export function CustomTopicActions({
           size="sm"
           variant="outline"
           onClick={handleAnalyze}
-          disabled={pending !== null}
+          disabled={pending !== null || !!lockedReason}
         >
           {pending === "analyze" ? (
             <Loader2 className="size-3 animate-spin" />
@@ -136,7 +139,7 @@ export function CustomTopicActions({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button size="sm" variant="outline" disabled={pending !== null}>
+              <Button size="sm" variant="outline" disabled={pending !== null || !!lockedReason}>
                 {pending === "script" ? (
                   <Loader2 className="size-3 animate-spin" />
                 ) : (
@@ -153,7 +156,7 @@ export function CustomTopicActions({
                 <DropdownMenuItem
                   key={d.seconds}
                   onClick={() => handleGenerate(d.seconds)}
-                  disabled={pending !== null}
+                  disabled={pending !== null || !!lockedReason}
                   className="flex flex-col items-start gap-0.5"
                 >
                   <span className="text-sm">{d.label}</span>
@@ -179,7 +182,7 @@ export function CustomTopicActions({
                     size="sm"
                     variant="secondary"
                     className="h-7"
-                    disabled={pending !== null}
+                    disabled={pending !== null || !!lockedReason}
                     onClick={handleGenerateCustom}
                   >
                     生成
@@ -193,13 +196,13 @@ export function CustomTopicActions({
       <ConfirmDialog
         title={`删除「${topicLabel.slice(0, 50)}」？`}
         confirmLabel="删除"
-        disabled={pending !== null}
+        disabled={pending !== null || !!lockedReason}
         onConfirm={() => {
           setPending("delete");
           remove.mutate({ topicId });
         }}
         trigger={
-          <Button size="sm" variant="ghost" disabled={pending !== null}>
+          <Button size="sm" variant="ghost" disabled={pending !== null || !!lockedReason}>
             <Trash2 className="size-3" />
           </Button>
         }

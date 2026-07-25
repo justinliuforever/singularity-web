@@ -73,8 +73,10 @@ export default async function AccountBiblePage({ params }: Props) {
         }
       />
 
+      {/* Stays mounted after the last flag is confirmed — it is the card that says the
+          bible can now be activated, so removing it on confirm hides its own next step. */}
       {bibles
-        .filter((b) => (b.importFlags ?? []).some((f) => !f.resolved))
+        .filter((b) => !b.isActive && (b.importFlags ?? []).length > 0)
         .map((b) => (
           <ImportReviewCard key={b.id} bibleId={b.id} bibleName={b.name} flags={b.importFlags ?? []} />
         ))}

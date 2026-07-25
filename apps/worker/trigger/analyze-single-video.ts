@@ -109,9 +109,9 @@ export const analyzeSingleVideo = task({
             coverWhyItWorks: video.thumbnailWhyItWorks,
             coverDiagnosis: video.coverDiagnosis,
             coverTitleSuggestions: video.coverTitleSuggestions,
+            coverVisionAt: video.coverVisionAt,
             analysisSummary: summarizeAnalysis(video),
             commentsSummary: null,
-            language,
           })
         : buildHottestSopPrompt({
             channelName,
@@ -139,7 +139,9 @@ export const analyzeSingleVideo = task({
       // get redacted as invented. Cover fields join only when a real image read happened —
       // otherwise thumbnailDescription is a caption-derived guess and would be laundered
       // into ground truth.
-      const coverAnalyzed = Boolean(video.coverDiagnosis || video.coverTitleSuggestions?.length);
+      const coverAnalyzed = Boolean(
+        video.coverVisionAt || video.coverDiagnosis || video.coverTitleSuggestions?.length,
+      );
       const grounded = await redactUngrounded({
         draft: cleaned,
         source: [

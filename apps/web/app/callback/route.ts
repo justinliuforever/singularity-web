@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { loginEvents, users } from "@goooose/db";
 
 import { db } from "@/lib/db";
+import { logServerError } from "@/lib/log-error";
 import { logtoConfig } from "@/lib/logto";
 import { BETA_CODE_COOKIE, redeemAccessCode } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
@@ -25,6 +26,15 @@ export async function GET(request: NextRequest) {
       isAuthenticated: false,
     }));
     console.error("sign-in callback failed", err);
+    // Catching it here removed it from onRequestError, and login failures were the whole
+    // content of error_events — without this a login regression becomes invisible again.
+    await logServerError({
+      message: (err as Error)?.message ?? String(err),
+      stack: (err as Error)?.stack ?? null,
+      route: "/callback",
+      method: "GET",
+      kind: "app-route",
+    });
     redirect(isAuthenticated ? "/" : "/sign-in-failed?reason=expired");
   }
   // One row per completed sign-in — feeds the admin user-detail view. Never

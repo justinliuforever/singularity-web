@@ -57,7 +57,8 @@ export function ContextHeader() {
       </Link>
       <BibleChip
         name={data.account.activeBible?.name ?? null}
-        awaitingReviewCount={data.account.awaitingReviewCount}
+        parkedCount={data.account.parkedBibleCount}
+        parkedUnresolvedCount={data.account.parkedUnresolvedCount}
         manageHref={`/accounts/${a}/bible`}
       />
       {data.project && data.project.slug !== data.account.slug ? (

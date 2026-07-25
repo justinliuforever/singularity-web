@@ -611,19 +611,23 @@ type ImagePostArgs = {
   coverWhyItWorks?: string | null;
   coverDiagnosis?: string | null;
   coverTitleSuggestions?: string[] | null;
+  coverVisionAt?: Date | string | null;
   analysisSummary: string;
   commentsSummary?: string | null;
-  language?: 'en' | 'zh';
 };
 
-// Image posts carry no audio and no runtime, so the video deep-dive's time axis has
+// Image posts are XHS/Douyin only, so the deep dive is written in Chinese — no language arg
+// to silently ignore. Image posts carry no audio and no runtime, so the video deep-dive's time axis has
 // nothing to bind to. Cover claims are gated on the vision columns actually being set —
 // those are written only by a real image read, so their absence means "never looked".
 export function buildImagePostSopPrompt(args: ImagePostArgs): string {
-  // Provenance gate: only coverDiagnosis / coverTitleSuggestions are written exclusively
-  // by a real image read. thumbnailDescription is NOT — with no image it gets guessed from
-  // the caption ("封面图很可能是…"), so relaying it would launder that guess as a finding.
-  const hasCover = Boolean(args.coverDiagnosis || args.coverTitleSuggestions?.length);
+  // Provenance gate. coverVisionAt is the explicit record that an image was actually read;
+  // the other two are legacy signals kept for rows written before that column existed.
+  // thumbnailDescription is never a signal — with no image it holds a caption-derived guess
+  // ("封面图很可能是…"), so relaying it would launder that guess as a finding.
+  const hasCover = Boolean(
+    args.coverVisionAt || args.coverDiagnosis || args.coverTitleSuggestions?.length,
+  );
   const coverBlock = hasCover
     ? `\n\n## 封面（视觉分析结果）\n${[
         args.coverDescription ? `- 画面构成：${args.coverDescription}` : null,
@@ -650,7 +654,7 @@ export function buildImagePostSopPrompt(args: ImagePostArgs): string {
 
   const engagementStr =
     args.engagementScore && args.engagementScore > 0
-      ? `${args.engagementScore.toLocaleString('en-US')}（互动分：点赞+收藏+评论+分享的加权值，不是播放量）`
+      ? `${args.engagementScore.toLocaleString('en-US')}（互动分：点赞+收藏+评论+分享的加权值，不是观看数据）`
       : '不可用';
 
   const slideLine = args.slideCount && args.slideCount > 0 ? `\n- **图片数：** ${args.slideCount} 张` : '';
@@ -677,7 +681,7 @@ ${args.analysisSummary}${commentsBlock}
 
 ## 输出结构
 
-**图文没有时间轴，也没有语音。**全文禁止出现 \`[m:ss]\` 时间码、"第几秒"、"完播率"、"观看时长"、"播放量"、"黄金前3秒"这类视频指标——它们在图文上不存在。定位一律用**阅读顺序**：标题 / 开头 / 第2段 / 中段 / 结尾，或第几张图。
+**图文没有时间轴，也没有语音。**全文禁止出现 \`[m:ss]\` 时间码、"第几秒"、"完播率"、"观看时长"、"播放量"、"黄金前3秒"这类视频指标——它们在图文上不存在。**这一条覆盖开头术语表**：术语表里的「黄金前 3 秒钩子」「完播率痛点」是给视频用的，在图文里一律改写成「在信息流里让人停手」「愿不愿意往下滑完」。定位一律用**阅读顺序**：标题 / 开头 / 第2段 / 中段 / 结尾，或第几张图。
 
 按下面的顺序写：
 

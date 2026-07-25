@@ -276,11 +276,12 @@ function renderVideoSummaryBlock(
   lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
   lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
   lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
-  // cover_diagnosis / cover_title_suggestions are vision-only columns (DeepSeek writes neither),
-  // so either being set proves vision succeeded and thus that thumbnail_description /
-  // thumbnail_why_it_works hold a real read rather than the text model's earlier guess. Injected
-  // verbatim because the MAP step only paraphrases, and the cover playbook needs the real read.
-  if (v.coverDiagnosis || v.coverTitleSuggestions?.length) {
+  // cover_vision_at records that an image was actually read; the other two are legacy signals
+  // for rows written before it existed. Inferring from them alone reported real multi-image
+  // reads as "no cover analysis" — the stack path returns no title suggestions and diagnosis is
+  // null for a clean cover. Injected verbatim: the MAP step only paraphrases, and the cover
+  // playbook needs the real read.
+  if (v.coverVisionAt || v.coverDiagnosis || v.coverTitleSuggestions?.length) {
     if (v.thumbnailDescription) lines.push(`- Cover (vision) — what this post's own cover image shows: ${v.thumbnailDescription}`);
     if (v.thumbnailWhyItWorks) lines.push(`- Cover (vision) — why it works: ${v.thumbnailWhyItWorks}`);
     if (v.coverDiagnosis) lines.push(`- Cover (vision) — weakest point: ${v.coverDiagnosis}`);
@@ -693,6 +694,7 @@ export const analyzeChannel = task({
         const dbAnalysis = dbAnalysisRaw;
         let coverDiagnosis: string | null = null;
         let coverTitleSuggestions: string[] | null = null;
+        let coverVisionAt: Date | null = null;
 
         if (visionPromise) {
           await metadata.set("progress", {
@@ -705,8 +707,11 @@ export const analyzeChannel = task({
           });
           const visual = await visionPromise;
           if (visual) {
-            if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
-            if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
+            // A real read is authoritative for the whole field: keeping the text model's
+            // guess when one part comes back empty leaves a guess behind the vision gate.
+            dbAnalysis.thumbnailDescription = visual.description || "";
+            dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks || "";
+            coverVisionAt = new Date();
             coverDiagnosis = visual.diagnosis;
             coverTitleSuggestions = visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
           } else {
@@ -1566,9 +1571,13 @@ export const analyzeChannel = task({
           // DeepSeek is text-only; Claude vision overrides its inferred thumbnail fields.
           let coverDiagnosis: string | null = null;
           let coverTitleSuggestions: string[] | null = null;
+          let coverVisionAt: Date | null = null;
           if (visual) {
-            if (visual.description) dbAnalysis.thumbnailDescription = visual.description;
-            if (visual.whyItWorks) dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks;
+            // A real read is authoritative for the whole field: keeping the text model's
+            // guess when one part comes back empty leaves a guess behind the vision gate.
+            dbAnalysis.thumbnailDescription = visual.description || "";
+            dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks || "";
+            coverVisionAt = new Date();
             coverDiagnosis = visual.diagnosis;
             coverTitleSuggestions =
               visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
@@ -1594,6 +1603,7 @@ export const analyzeChannel = task({
             transcriptSource,
             coverDiagnosis,
             coverTitleSuggestions,
+            coverVisionAt,
             chapters: info?.chapters ?? null,
             sponsorChapters: info?.sponsor_chapters ?? null,
             ...dbAnalysis,
@@ -1898,9 +1908,9 @@ export const analyzeChannel = task({
                     coverWhyItWorks: top.thumbnailWhyItWorks,
                     coverDiagnosis: top.coverDiagnosis,
                     coverTitleSuggestions: top.coverTitleSuggestions,
+                    coverVisionAt: top.coverVisionAt,
                     analysisSummary: summarizeAnalysis(top),
                     commentsSummary: hottestCommentsSummary,
-                    language,
                   })
                 : buildHottestSopPrompt({
                     channelName: channel.name,
@@ -1917,7 +1927,9 @@ export const analyzeChannel = task({
             groundingSource: () => {
               const top = channelVideos[0];
               if (!top) return videosData;
-              const coverAnalyzed = Boolean(top.coverDiagnosis || top.coverTitleSuggestions?.length);
+              const coverAnalyzed = Boolean(
+                top.coverVisionAt || top.coverDiagnosis || top.coverTitleSuggestions?.length,
+              );
               return [
                 top.transcript,
                 summarizeAnalysis(top),

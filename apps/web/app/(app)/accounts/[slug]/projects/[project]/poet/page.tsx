@@ -237,6 +237,7 @@ export default async function PoetChannelPage({ params }: Props) {
                     status={t.status}
                     hasActiveBible={!!activeBible}
                     hasSop={hasAiReferenceSop}
+                    lockedReason={accountPoetLock ? "该账号有 Poet 任务在运行，完成后再启动" : undefined}
                   />
                 </header>
 

@@ -142,7 +142,7 @@ async function assertNoActiveRun(owner: string | RunOwner, agent: "clerk" | "mus
     const label = COMMAND_LABEL[active.command] ?? active.command;
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `该目标正在运行「${label}」（已 ${mins} 分钟）。等它完成，或在右上角任务列表里取消后再启动`,
+      message: `该目标正在运行「${label}」（已 ${mins} 分钟）。等它完成，或在该任务的进度卡片上取消后再启动`,
     });
   }
 }
@@ -237,7 +237,7 @@ async function assertRunQuota(
   if (cost === "free" && quotaMinutes === undefined) return 0;
   const fixed = cost === "byTargetDuration" ? scriptMinutes() : typeof cost === "number" ? cost : undefined;
   const charge = quotaMinutes ?? fixed;
-  const need = charge ?? estimateMinutes ?? 1;
+  const need = charge ?? Math.max(estimateMinutes ?? 0, 1);
   const q = await checkMinutes(db, { userId, need });
   if (!q.allowed) {
     const detail = charge ? `，本次需 ${charge} 分钟` : estimateMinutes ? `，本次预计约 ${estimateMinutes} 分钟` : "";
@@ -514,18 +514,16 @@ export const appRouter = router({
           .from(poetBible)
           .where(and(eq(poetBible.channelId, account.id), eq(poetBible.isActive, true)))
           .limit(1);
-        // A parked import is neither active nor absent; without this the chip reads
-        // 未设置 while finished bibles sit waiting for review.
-        const [awaiting] = await db
-          .select({ n: count() })
+        // A parked bible is neither active nor absent; without this the chip reads 未设置
+        // over finished imports. Counting open flags alone was not enough — confirming the
+        // last one left the bible parked and the chip flipped back to 未设置.
+        const [parked] = await db
+          .select({
+            total: count(),
+            unresolved: sql<number>`count(*) filter (where exists (select 1 from jsonb_array_elements(${poetBible.importFlags}) f where (f->>'resolved') is distinct from 'true'))::int`,
+          })
           .from(poetBible)
-          .where(
-            and(
-              eq(poetBible.channelId, account.id),
-              eq(poetBible.isActive, false),
-              sql`exists (select 1 from jsonb_array_elements(${poetBible.importFlags}) f where (f->>'resolved') is distinct from 'true')`,
-            ),
-          );
+          .where(and(eq(poetBible.channelId, account.id), eq(poetBible.isActive, false)));
         let project: {
           name: string;
           slug: string;
@@ -551,7 +549,8 @@ export const appRouter = router({
             slug: account.slug,
             platform: account.platform,
             activeBible: activeBible ?? null,
-            awaitingReviewCount: awaiting?.n ?? 0,
+            parkedBibleCount: activeBible ? 0 : (parked?.total ?? 0),
+            parkedUnresolvedCount: activeBible ? 0 : (parked?.unresolved ?? 0),
           },
           project,
         };
@@ -1389,10 +1388,9 @@ export const appRouter = router({
           taskId: "clerk-analyze-channel",
           config,
           payload: config,
-          estimateMinutes: estimateRunMinutes(
-            platform,
-            input.videoIds?.length ?? input.limit ?? 0,
-          ),
+          // videoIds is z.default([]) — never nullish — so `??` never fell through to limit
+          // and the estimate was always 0, which also dropped the floor below 1.
+          estimateMinutes: estimateRunMinutes(platform, input.videoIds.length || input.limit || 0),
         });
       }),
 

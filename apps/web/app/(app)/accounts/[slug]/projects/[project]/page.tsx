@@ -50,10 +50,9 @@ export default async function ProjectHubPage({ params }: Props) {
     db.select({ c: count() }).from(poetCustomTopics).where(eq(poetCustomTopics.projectId, project.id)),
     db.select({ c: count() }).from(poetScripts).where(eq(poetScripts.projectId, project.id)),
     db
-      .select()
+      .select({ id: poetBible.id, name: poetBible.name, isActive: poetBible.isActive, importFlags: poetBible.importFlags })
       .from(poetBible)
-      .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
-      .limit(1),
+      .where(eq(poetBible.channelId, channel.id)),
   ]);
 
   // Current writing SOP: explicit primary binding wins, else this account's latest ai_reference.
@@ -96,7 +95,8 @@ export default async function ProjectHubPage({ params }: Props) {
 
   const a = encodeURIComponent(channel.slug);
   const p = encodeURIComponent(project.slug);
-  const activeBible = activeBibleRows[0] ?? null;
+  const activeBible = activeBibleRows.find((b) => b.isActive) ?? null;
+  const parkedBibles = activeBible ? [] : activeBibleRows;
   const unit = PLATFORM_CONTENT_UNIT[project.platform];
   const itemDone = `${unit.measure}${unit.noun}已巡视`;
 
@@ -138,6 +138,10 @@ export default async function ProjectHubPage({ params }: Props) {
         <BibleChip
           variant="band"
           name={activeBible?.name ?? null}
+          parkedCount={parkedBibles.length}
+          parkedUnresolvedCount={
+            parkedBibles.filter((b) => (b.importFlags ?? []).some((f) => !f.resolved)).length
+          }
           manageHref={`/accounts/${a}/bible`}
         />
       </div>
