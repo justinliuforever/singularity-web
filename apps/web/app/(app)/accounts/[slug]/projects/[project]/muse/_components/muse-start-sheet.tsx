@@ -5,9 +5,19 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { detectVideoLinkPlatform } from "@goooose/integrations/validators";
+
 import { Button } from "@/components/ui/button";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -17,6 +27,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { cleanProfileName } from "@/lib/display-name";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
 import { PLATFORM_LABEL } from "@/lib/platform";
@@ -24,6 +35,14 @@ import { trpc } from "@/lib/trpc";
 
 type Language = "zh" | "en";
 type ContentFilter = "all" | "video" | "image";
+type SourceMode = "batch" | "links";
+
+const MAX_LINK_LINES = 10;
+
+const SOURCE_MODE_OPTIONS: Array<{ value: SourceMode; label: string; hint: string }> = [
+  { value: "batch", label: "批量拉取最新", hint: "扫描所选对标账号的最新内容" },
+  { value: "links", label: "指定链接", hint: "只分析你粘贴的具体内容链接" },
+];
 
 export type MuseCompetitor = {
   id: string;
@@ -56,6 +75,17 @@ const CONTENT_FILTER_OPTIONS: Array<{ value: ContentFilter; label: string; hint:
   { value: "image", label: "仅图文", hint: "标题 + 正文分析" },
 ];
 
+const SOP_GROUP_LABEL = {
+  competitor: "对标账号 SOP",
+  single_video: "单条爆款拆解",
+  own: "我的账号 SOP",
+} as const;
+const SOP_TYPE_TAG: Record<string, string> = {
+  human: "人读版",
+  ai_reference: "AI 参考版",
+  hottest: "爆款拆解",
+};
+
 export function MuseStartSheet({ channelId, projectId, channelName, competitors, disabled }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -68,9 +98,14 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
     () => new Set(competitors.map((c) => c.id)),
   );
   const [extraIds, setExtraIds] = useState<Set<string>>(() => new Set());
+  const [direction, setDirection] = useState("");
+  const [sopId, setSopId] = useState<string | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode>("batch");
+  const [linksText, setLinksText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const allCompetitors = trpc.competitors.list.useQuery(undefined, { enabled: open });
+  const sopOptions = trpc.muse.sopOptions.useQuery(undefined, { enabled: open });
   const boundIdSet = useMemo(() => new Set(competitors.map((c) => c.id)), [competitors]);
   const unbound = useMemo(
     () => (allCompetitors.data ?? []).filter((c) => !boundIdSet.has(c.id)),
@@ -122,15 +157,40 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
     onError: (err) => setError(err.message),
   });
 
+  // Link lines with 1-based numbers of unrecognizable ones, for inline validation.
+  const linkLines = useMemo(
+    () => linksText.split("\n").map((s) => s.trim()).filter(Boolean),
+    [linksText],
+  );
+  const invalidLineNos = useMemo(
+    () =>
+      linksText
+        .split("\n")
+        .map((s, i) => (s.trim() && detectVideoLinkPlatform(s) === null ? i + 1 : null))
+        .filter((n): n is number => n !== null),
+    [linksText],
+  );
+  const linksReady =
+    linkLines.length > 0 && linkLines.length <= MAX_LINK_LINES && invalidLineNos.length === 0;
+
   const handleSubmit = () => {
     setError(null);
-    const allSelected = selected.length === competitors.length;
-    startMutation.mutate({
+    const shared = {
       channelId,
       projectId,
-      maxVideosPerCompetitor: maxVideos,
       numIdeasPerVideo: numIdeas,
       language,
+      ...(direction.trim() ? { direction: direction.trim() } : {}),
+      ...(sopId ? { sopId } : {}),
+    };
+    if (sourceMode === "links") {
+      startMutation.mutate({ ...shared, sourceMode: "links", videoUrls: linkLines });
+      return;
+    }
+    const allSelected = selected.length === competitors.length;
+    startMutation.mutate({
+      ...shared,
+      maxVideosPerCompetitor: maxVideos,
       ...(allSelected ? {} : { competitorAccountIds: selected.map((c) => c.id) }),
       ...(extraSelected.length > 0
         ? { extraCompetitorAccountIds: extraSelected.map((c) => c.id) }
@@ -138,6 +198,15 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
       contentFilter,
     });
   };
+
+  const sopGroups = (["competitor", "single_video", "own"] as const)
+    .map((key) => ({
+      key,
+      label: SOP_GROUP_LABEL[key],
+      items: (sopOptions.data ?? []).filter((s) => s.group === key),
+    }))
+    .filter((g) => g.items.length > 0);
+  const selectedSop = (sopOptions.data ?? []).find((s) => s.id === sopId) ?? null;
 
   const totalCount = selected.length + extraSelected.length;
   const totalIdeas = totalCount * maxVideos * numIdeas;
@@ -167,6 +236,51 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
           <FieldGroup>
+            <Field>
+              <FieldLabel>拉取方式</FieldLabel>
+              <div className="flex gap-2">
+                {SOURCE_MODE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSourceMode(opt.value)}
+                    className={`flex flex-1 flex-col items-start gap-0.5 rounded-md border p-2 text-left text-xs transition-colors ${
+                      sourceMode === opt.value
+                        ? "border-foreground bg-foreground/5"
+                        : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {sourceMode === "links" ? (
+              <Field>
+                <FieldLabel htmlFor="muse-links">内容链接</FieldLabel>
+                <Textarea
+                  id="muse-links"
+                  value={linksText}
+                  onChange={(e) => setLinksText(e.target.value)}
+                  placeholder={"每行一条链接，支持小红书 / 抖音 / YouTube\n手机分享的短链也可以直接粘贴"}
+                  rows={5}
+                />
+                {invalidLineNos.length > 0 ? (
+                  <p className="text-xs text-destructive">
+                    第 {invalidLineNos.join("、")} 行无法识别 — 请粘贴内容链接（视频 / 笔记），而不是主页链接
+                  </p>
+                ) : null}
+                {linkLines.length > MAX_LINK_LINES ? (
+                  <p className="text-xs text-destructive">一次最多 {MAX_LINK_LINES} 条链接</p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  指定的链接会全部生成选题（不做相关性筛选）；巡视过的链接会复用已有转写、直接再生成
+                </p>
+              </Field>
+            ) : (
+              <>
             <Field>
               <FieldLabel>巡视哪些对标账号</FieldLabel>
               <div className="flex flex-col gap-1.5">
@@ -303,6 +417,8 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
                 ) : null}
               </Field>
             ) : null}
+              </>
+            )}
 
             <Field>
               <FieldLabel>每个相关视频生成选题数</FieldLabel>
@@ -351,14 +467,80 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
               </p>
             </Field>
 
+            <Field>
+              <FieldLabel htmlFor="muse-direction">选题方向（可选）</FieldLabel>
+              <Textarea
+                id="muse-direction"
+                value={direction}
+                onChange={(e) => setDirection(e.target.value)}
+                placeholder="例：只要围绕 AI 工具实测的选题；不要涉及硬件；想做成系列"
+                maxLength={500}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                作为硬约束注入选题生成 — 不符合方向的选题会被直接丢弃
+              </p>
+            </Field>
+
+            {sopGroups.length > 0 ? (
+              <Field>
+                <FieldLabel>打法参考 SOP（可选）</FieldLabel>
+                <Select
+                  value={sopId ?? "none"}
+                  onValueChange={(v) => setSopId(v === "none" || typeof v !== "string" ? null : v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <span className="truncate">
+                      {selectedSop
+                        ? `${selectedSop.label}${SOP_TYPE_TAG[selectedSop.sopType] ? ` · ${SOP_TYPE_TAG[selectedSop.sopType]}` : ""}`
+                        : "不使用"}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="none">不使用</SelectItem>
+                    </SelectGroup>
+                    {sopGroups.map((g) => (
+                      <SelectGroup key={g.key}>
+                        <SelectLabel>{g.label}</SelectLabel>
+                        {g.items.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.label}
+                            {SOP_TYPE_TAG[s.sopType] ? ` · ${SOP_TYPE_TAG[s.sopType]}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  选题会对齐该 SOP 的打法，建议钩子直接复用其中的钩子名
+                </p>
+              </Field>
+            ) : null}
+
             <div className="rounded-md border bg-muted/30 p-3 text-xs">
               <span className="font-medium text-foreground">预估上限：</span>
-              <span className="font-mono">
-                {totalCount} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
-              </span>
-              <p className="mt-1 text-muted-foreground">
-                实际产出取决于相关性筛选 — 只有与你频道定位相关、且有可借鉴爆款机制的内容才会生成选题。
-              </p>
+              {sourceMode === "links" ? (
+                <>
+                  <span className="font-mono">
+                    {linkLines.length} × {numIdeas} = 最多{" "}
+                    {(linkLines.length * numIdeas).toLocaleString()} 选题
+                  </span>
+                  <p className="mt-1 text-muted-foreground">
+                    指定的链接全部生成选题，不做相关性筛选；实际产出取决于内容是否可转写。
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span className="font-mono">
+                    {totalCount} × {maxVideos} × {numIdeas} = 最多 {totalIdeas.toLocaleString()} 选题
+                  </span>
+                  <p className="mt-1 text-muted-foreground">
+                    实际产出取决于相关性筛选 — 只有与你频道定位相关、且有可借鉴爆款机制的内容才会生成选题。
+                  </p>
+                </>
+              )}
             </div>
           </FieldGroup>
 
@@ -369,14 +551,21 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
           <div className="flex items-center gap-3">
             <Button
               onClick={handleSubmit}
-              disabled={startMutation.isPending || totalCount === 0}
+              disabled={
+                startMutation.isPending ||
+                (sourceMode === "links" ? !linksReady : totalCount === 0)
+              }
             >
               {startMutation.isPending ? (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
               ) : (
                 <Play data-icon="inline-start" />
               )}
-              {startMutation.isPending ? "启动中…" : `巡视 ${totalCount} 个对标`}
+              {startMutation.isPending
+                ? "启动中…"
+                : sourceMode === "links"
+                  ? `巡视 ${linkLines.length} 个链接`
+                  : `巡视 ${totalCount} 个对标`}
             </Button>
             <Button
               variant="ghost"

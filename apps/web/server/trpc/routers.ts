@@ -45,7 +45,7 @@ import {
   isValidXhsProfileUrl,
   resolveXhsUser,
 } from "@goooose/integrations/clients/xhs";
-import { isValidDouyinProfileUrl } from "@goooose/integrations/validators";
+import { detectVideoLinkPlatform, isValidDouyinProfileUrl } from "@goooose/integrations/validators";
 import {
   fetchChannelMetaById,
   fetchChannelMetaByHandle,
@@ -1585,97 +1585,176 @@ export const appRouter = router({
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
         await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
-        // Same source as the monitor job: live project_competitors.
-        const bound = await db
-          .select({ id: competitorAccounts.id })
-          .from(projectCompetitors)
-          .innerJoin(
-            competitorAccounts,
-            eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
-          )
-          .where(
-            and(
-              eq(projectCompetitors.projectId, input.projectId),
-              isNull(competitorAccounts.deletedAt),
-            ),
-          );
-        if (bound.length === 0) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "请先为该频道配置至少一个对标账号",
-          });
-        }
-        const boundIds = new Set(bound.map((b) => b.id));
-        const selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
-
+        // Links mode patrols exactly the pasted URLs — competitor bindings don't apply.
+        const linksMode = input.sourceMode === "links";
+        let selectedIds: string[] | undefined;
+        // Survives the block below so the quota estimate can still size a bound-competitor run.
+        let boundCount = 0;
         let extraIds: string[] | undefined;
-        const extraReq = input.extraCompetitorAccountIds?.filter((id) => !boundIds.has(id));
-        if (extraReq && extraReq.length > 0) {
-          const owned = await db
+        if (!linksMode) {
+          // Same source as the monitor job: live project_competitors.
+          const bound = await db
             .select({ id: competitorAccounts.id })
-            .from(competitorAccounts)
+            .from(projectCompetitors)
+            .innerJoin(
+              competitorAccounts,
+              eq(competitorAccounts.id, projectCompetitors.competitorAccountId),
+            )
             .where(
               and(
-                inArray(competitorAccounts.id, extraReq),
-                eq(competitorAccounts.userId, ctx.user.id),
+                eq(projectCompetitors.projectId, input.projectId),
                 isNull(competitorAccounts.deletedAt),
               ),
             );
-          if (owned.length !== extraReq.length) {
+          if (bound.length === 0) {
             throw new TRPCError({
               code: "PRECONDITION_FAILED",
-              message: "临时对标账号不存在或不属于你",
+              message: "请先为该频道配置至少一个对标账号",
             });
           }
-          extraIds = owned.map((o) => o.id);
+          boundCount = bound.length;
+          const boundIds = new Set(bound.map((b) => b.id));
+          selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
+
+          // Temp competitors: must be the user's, but need NOT be bound to this project.
+          const extraReq = input.extraCompetitorAccountIds?.filter((id) => !boundIds.has(id));
+          if (extraReq && extraReq.length > 0) {
+            const owned = await db
+              .select({ id: competitorAccounts.id })
+              .from(competitorAccounts)
+              .where(
+                and(
+                  inArray(competitorAccounts.id, extraReq),
+                  eq(competitorAccounts.userId, ctx.user.id),
+                  isNull(competitorAccounts.deletedAt),
+                ),
+              );
+            if (owned.length !== extraReq.length) {
+              throw new TRPCError({
+                code: "PRECONDITION_FAILED",
+                message: "临时对标账号不存在或不属于你",
+              });
+            }
+            extraIds = owned.map((o) => o.id);
+          }
+
+          // selectedIds === [] is a valid extras-only run; reject only when nothing at all would run.
+          if (
+            input.competitorAccountIds &&
+            (selectedIds?.length ?? 0) === 0 &&
+            (extraIds?.length ?? 0) === 0
+          ) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "请至少选择一个对标账号",
+            });
+          }
         }
 
-        // selectedIds === [] is a valid extras-only run; reject only when nothing at all would run.
-        if (
-          input.competitorAccountIds &&
-          (selectedIds?.length ?? 0) === 0 &&
-          (extraIds?.length ?? 0) === 0
-        ) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "请至少选择一个对标账号",
-          });
+        // Playbook reference must be one of the user's own SOPs (any of the three owner chains).
+        if (input.sopId) {
+          const [sop] = await db
+            .select({ id: clerkSops.id })
+            .from(clerkSops)
+            .leftJoin(channels, eq(channels.id, clerkSops.channelId))
+            .leftJoin(ownAccounts, eq(ownAccounts.id, clerkSops.ownAccountId))
+            .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+            .where(
+              and(
+                eq(clerkSops.id, input.sopId),
+                or(
+                  eq(channels.userId, ctx.user.id),
+                  eq(ownAccounts.userId, ctx.user.id),
+                  eq(competitorAccounts.userId, ctx.user.id),
+                ),
+              ),
+            )
+            .limit(1);
+          if (!sop) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "打法参考 SOP 不存在或不属于你" });
+          }
         }
 
         await assertNoActiveRun(channel.id, "muse");
 
         const contentFilter = input.contentFilter ?? input.xhsContentType ?? "all";
+        const direction = input.direction?.trim() || undefined;
 
-        const competitorCount =
-          (selectedIds?.length ?? bound.length) + (extraIds?.length ?? 0);
+        const competitorCount = (selectedIds?.length ?? boundCount) + (extraIds?.length ?? 0);
+        // Pasted links can mix platforms, so size each one by the platform it points at
+        // rather than by the account's — a YouTube link costs twice an XHS one.
+        const estimateMinutes = linksMode
+          ? (input.videoUrls ?? []).reduce(
+              (sum, url) => sum + estimateRunMinutes(detectVideoLinkPlatform(url) ?? channel.platform, 1),
+              0,
+            )
+          : estimateRunMinutes(channel.platform, competitorCount * (input.maxVideosPerCompetitor ?? 10));
         return stageAndTriggerRun({
           userId: ctx.user.id,
           owner: { channelId: channel.id },
           projectId: input.projectId,
           agent: "muse",
           taskId: "muse-monitor-competitors",
-          estimateMinutes: estimateRunMinutes(
-            channel.platform,
-            competitorCount * (input.maxVideosPerCompetitor ?? 10),
-          ),
+          estimateMinutes,
           config: {
-            maxVideosPerCompetitor: input.maxVideosPerCompetitor,
             numIdeasPerVideo: input.numIdeasPerVideo,
             language: input.language,
-            ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
-            ...(extraIds ? { extraCompetitorAccountIds: extraIds } : {}),
-            contentFilter,
+            ...(linksMode
+              ? { sourceMode: "links", videoUrls: input.videoUrls }
+              : {
+                  maxVideosPerCompetitor: input.maxVideosPerCompetitor,
+                  ...(selectedIds ? { competitorAccountIds: selectedIds } : {}),
+                  ...(extraIds ? { extraCompetitorAccountIds: extraIds } : {}),
+                  contentFilter,
+                }),
+            ...(direction ? { direction } : {}),
+            ...(input.sopId ? { sopId: input.sopId } : {}),
           },
           payload: {
-            maxVideosPerCompetitor: input.maxVideosPerCompetitor,
             numIdeasPerVideo: input.numIdeasPerVideo,
             language: input.language,
-            competitorAccountIds: selectedIds,
-            extraCompetitorAccountIds: extraIds,
-            contentFilter,
+            ...(linksMode
+              ? { sourceMode: "links" as const, videoUrls: input.videoUrls }
+              : {
+                  maxVideosPerCompetitor: input.maxVideosPerCompetitor,
+                  competitorAccountIds: selectedIds,
+                  extraCompetitorAccountIds: extraIds,
+                  contentFilter,
+                }),
+            direction,
+            sopId: input.sopId,
           },
         });
       }),
+
+    // Options for the patrol's playbook selector — every SOP the user owns, light rows only.
+    sopOptions: protectedProcedure.query(async ({ ctx }) => {
+      return db
+        .select({
+          id: clerkSops.id,
+          sopType: clerkSops.sopType,
+          language: clerkSops.language,
+          generatedAt: clerkSops.generatedAt,
+          group: sql<"single_video" | "competitor" | "own">`case
+            when ${clerkSops.sopType} = 'single_video' then 'single_video'
+            when ${clerkSops.competitorAccountId} is not null then 'competitor'
+            else 'own' end`,
+          label: sql<string>`coalesce(${clerkVideos.title}, ${channels.name}, ${ownAccounts.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未命名 SOP')`,
+        })
+        .from(clerkSops)
+        .leftJoin(channels, eq(channels.id, clerkSops.channelId))
+        .leftJoin(ownAccounts, eq(ownAccounts.id, clerkSops.ownAccountId))
+        .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+        .leftJoin(clerkVideos, eq(clerkVideos.id, clerkSops.videoId))
+        .where(
+          or(
+            eq(channels.userId, ctx.user.id),
+            eq(ownAccounts.userId, ctx.user.id),
+            eq(competitorAccounts.userId, ctx.user.id),
+          ),
+        )
+        .orderBy(desc(clerkSops.generatedAt));
+    }),
 
     approveIdea: protectedProcedure
       .input(approveIdeaInput)

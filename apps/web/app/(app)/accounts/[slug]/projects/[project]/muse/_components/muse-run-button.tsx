@@ -42,7 +42,7 @@ export function MuseRunButton({
             projectId={projectId}
             channelName={channelName}
             competitors={competitors}
-            disabled={competitorCount === 0}
+            disabled={false}
           />
         )}
       </div>
@@ -51,7 +51,7 @@ export function MuseRunButton({
           href={`/accounts/${encodeURIComponent(accountSlug)}/projects/${encodeURIComponent(projectSlug)}`}
           className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
-          先去绑定对标
+          未绑定对标 — 可在巡视里指定链接，或去绑定
         </Link>
       ) : null}
     </div>

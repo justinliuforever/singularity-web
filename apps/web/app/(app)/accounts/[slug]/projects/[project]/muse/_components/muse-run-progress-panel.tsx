@@ -17,7 +17,8 @@ import { trpc } from "@/lib/trpc";
 const MUSE_STAGES: Stage[] = [
   {
     label: "解析对标账号",
-    matches: (p) => p === "resolving competitors" || p === "fetching competitor videos",
+    matches: (p) =>
+      p === "resolving competitors" || p === "fetching competitor videos" || p === "resolving links",
   },
   {
     label: "抓取视频内容",
@@ -72,6 +73,7 @@ function translatePhase(phase: string | undefined): string {
   if (!phase) return "准备中…";
   const map: Record<string, string> = {
     "resolving competitors": "解析对标账号",
+    "resolving links": "解析指定链接",
     "fetching competitor videos": "抓取对标视频列表",
     "fetching video metadata": "获取视频元数据",
     "transcribing audio": "音频转写中",
