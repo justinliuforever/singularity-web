@@ -53,7 +53,7 @@ export default async function MuseChannelPage({ params }: Props) {
 
   const { user, channel, project } = await resolveOwnedProject(slug, projectSlug);
 
-  const [monitored, ideas, activeRun, boundCompetitors] = await Promise.all([
+  const [monitored, ideas, activeRun, accountMuseLock, boundCompetitors] = await Promise.all([
     db
       .select()
       .from(museMonitorVideos)
@@ -82,6 +82,8 @@ export default async function MuseChannelPage({ params }: Props) {
       .leftJoin(museMonitorVideos, eq(museMonitorVideos.id, museIdeas.sourceVideoId))
       .where(eq(museIdeas.projectId, project.id))
       .orderBy(desc(museIdeas.generatedAt)),
+    getActiveAgentRun(channel.id, user.id, "muse", undefined, project.id),
+    // The server lock is account-wide, so a sibling project's run still blocks starting here.
     getActiveAgentRun(channel.id, user.id, "muse"),
     // Same source the monitor reads: this project's bound competitors.
     db
@@ -225,7 +227,7 @@ export default async function MuseChannelPage({ params }: Props) {
           projectId={project.id}
           channelName={channel.name}
           competitors={boundCompetitors}
-          isActive={!!activeRun}
+          isActive={!!accountMuseLock}
           accountSlug={slug}
           projectSlug={projectSlug}
         />

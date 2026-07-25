@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RefreshOwnAccountButton } from "@/components/refresh-own-account-button";
+import { getActiveAgentRun } from "@/lib/agent-run";
 import { db } from "@/lib/db";
 import { formatDateTime } from "@/lib/datetime";
 import { followerNoun, formatFollowerCount } from "@/lib/format-count";
@@ -23,6 +24,7 @@ import { DeleteChannelButton } from "../_components/delete-channel-button";
 import { EditChannelSheet } from "../_components/edit-channel-sheet";
 import { NewProjectSheet } from "./projects/_components/new-project-sheet";
 import { BibleGenerateSheet } from "./projects/[project]/poet/_components/bible-generate-sheet";
+import { BibleRunProgress } from "./bible/_components/bible-run-progress";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -30,9 +32,9 @@ export default async function AccountDetailPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const { channel } = await resolveOwnedChannel(slug);
+  const { user, channel } = await resolveOwnedChannel(slug);
 
-  const [[clerkVideoCount], [clerkSopCount], activeBibleRows, projectList] = await Promise.all([
+  const [[clerkVideoCount], [clerkSopCount], activeBibleRows, projectList, poetRun] = await Promise.all([
     db.select({ c: count() }).from(clerkVideos).where(eq(clerkVideos.channelId, channel.id)),
     db.select({ c: count() }).from(clerkSops).where(eq(clerkSops.channelId, channel.id)),
     db
@@ -45,12 +47,20 @@ export default async function AccountDetailPage({ params }: Props) {
       .from(projects)
       .where(eq(projects.ownAccountId, channel.id))
       .orderBy(desc(projects.createdAt)),
+    getActiveAgentRun(channel.id, user.id, "poet"),
   ]);
 
   const a = encodeURIComponent(channel.slug);
   const unit = PLATFORM_CONTENT_UNIT[channel.platform];
   const itemNoun = `${unit.measure}${unit.noun}`;
   const activeBible = activeBibleRows.find((b) => b.isActive) ?? null;
+  const awaitingReview = activeBibleRows.filter(
+    (b) => !b.isActive && (b.importFlags ?? []).some((f) => !f.resolved),
+  );
+  const activeBibleRun =
+    poetRun && ["poet-generate-bible", "poet-import-bible"].includes(poetRun.command)
+      ? poetRun
+      : null;
   const analyzed = (clerkVideoCount?.c ?? 0) > 0;
   // No real homepage URL → nothing to pull, so the refresh button is hidden.
   const canRefresh =
@@ -113,6 +123,43 @@ export default async function AccountDetailPage({ params }: Props) {
             </Button>
           ) : null}
         </div>
+        <BibleRunProgress
+          initialActive={
+            activeBibleRun
+              ? {
+                  runId: activeBibleRun.runId,
+                  triggerRunId: activeBibleRun.triggerRunId,
+                  publicAccessToken: activeBibleRun.publicAccessToken,
+                  startedAt: activeBibleRun.startedAt,
+                }
+              : null
+          }
+        />
+
+        {/* A parked import is a finished run the account page used to render as "nothing
+            happened" — it needs a surface here, not only on the bible page. */}
+        {awaitingReview.length > 0 ? (
+          <Link href={`/accounts/${a}/bible`}>
+            <Card className="border-amber-500/50 transition-colors hover:bg-muted/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {awaitingReview[0]!.name}
+                  <Badge variant="warning" className="text-[10px]">
+                    待确认
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  圣经已生成
+                  {awaitingReview.length > 1 ? `（共 ${awaitingReview.length} 份）` : ""}
+                  ，还有存疑项需要你逐项确认，确认后才会生效。点击去确认 →
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+        ) : null}
+
         {activeBible ? (
           <Link href={`/accounts/${a}/bible`}>
             <Card className="transition-colors hover:bg-muted/50">
@@ -131,7 +178,7 @@ export default async function AccountDetailPage({ params }: Props) {
               </CardContent>
             </Card>
           </Link>
-        ) : (
+        ) : awaitingReview.length > 0 ? null : (
           <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed bg-card/40 p-6">
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">先生成这个账号的频道圣经</span>

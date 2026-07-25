@@ -38,7 +38,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
   const { user, channel, project } = await resolveOwnedProject(slug, projectSlug);
 
-  const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, primarySop] =
+  const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, accountPoetLock, primarySop] =
     await Promise.all([
       db
         .select()
@@ -79,6 +79,8 @@ export default async function PoetChannelPage({ params }: Props) {
         .where(eq(poetScripts.projectId, project.id))
         .orderBy(desc(poetScripts.generatedAt))
         .limit(20),
+      getActiveAgentRun(channel.id, user.id, "poet", undefined, project.id),
+      // The server lock is account-wide, so a sibling project's run still blocks starting here.
       getActiveAgentRun(channel.id, user.id, "poet"),
       resolvePrimarySop(db as unknown as Parameters<typeof resolvePrimarySop>[0], project.id, channel.id),
     ]);
@@ -154,8 +156,14 @@ export default async function PoetChannelPage({ params }: Props) {
                   channelSlug={channel.slug}
                   ideaId={idea.id}
                   ideaTitle={idea.storyAngle ?? "选题"}
-                  disabled={!activeBible}
-                  disabledReason={!activeBible ? "请先在账号页生成并选用频道圣经" : undefined}
+                  disabled={!activeBible || !!accountPoetLock}
+                  disabledReason={
+                    !activeBible
+                      ? "请先在账号页生成并选用频道圣经"
+                      : accountPoetLock
+                        ? "该账号有 Poet 任务在运行，完成后再启动"
+                        : undefined
+                  }
                   hasSop={hasAiReferenceSop}
                 />
               </article>

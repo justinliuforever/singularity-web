@@ -12,13 +12,25 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { AGENT_LABEL, COMMAND_LABEL, runBadgeLabel } from "@/lib/run-labels";
 
-// Default project slug == account slug, so agent pages deep-link off channelSlug.
-// Competitor-target clerk runs (no slug) link to the competitor analysis page.
-function deepLink(run: { agent: string; channelSlug: string | null; competitorAccountId: string | null }): string {
+// Bible runs carry no projectId and their review card lives on the account bible page,
+// so they must not be routed into a project's Poet page.
+function deepLink(run: {
+  agent: string;
+  command: string;
+  channelSlug: string | null;
+  projectSlug: string | null;
+  competitorAccountId: string | null;
+}): string {
   if (run.competitorAccountId) return `/clerk/competitor/${run.competitorAccountId}`;
   const s = encodeURIComponent(run.channelSlug ?? "");
   if (run.agent === "clerk") return `/clerk/${s}`;
-  if (run.agent === "muse" || run.agent === "poet") return `/accounts/${s}/projects/${s}/${run.agent}`;
+  if (run.command === "poet-generate-bible" || run.command === "poet-import-bible") {
+    return `/accounts/${s}/bible`;
+  }
+  if (run.agent === "muse" || run.agent === "poet") {
+    if (!run.projectSlug) return `/accounts/${s}`;
+    return `/accounts/${s}/projects/${encodeURIComponent(run.projectSlug)}/${run.agent}`;
+  }
   return "/";
 }
 
@@ -39,6 +51,7 @@ type RunRow = {
   progress: number | null;
   total: number | null;
   channelSlug: string | null;
+  projectSlug: string | null;
   competitorAccountId: string | null;
   targetName: string;
 };

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { auth } from "@trigger.dev/sdk";
 
 import { channels, competitorAccounts, pipelineRuns } from "@goooose/db";
@@ -23,6 +23,9 @@ export async function getActiveAgentRun(
   agent: "clerk" | "muse" | "poet",
   // Command filter — clerk has two commands; the channel panel must not reattach to a single-video run.
   command?: string,
+  // Scopes a project page to its own runs. Bible runs carry no projectId and belong to the
+  // account, so they stay visible — a strict equality would hide them from the Poet page.
+  projectId?: string,
 ): Promise<ActiveAgentRun | null> {
   const ownerObj: AgentRunOwner = typeof owner === "string" ? { channelId: owner } : owner;
   const ownerCond =
@@ -45,6 +48,9 @@ export async function getActiveAgentRun(
         or(eq(channels.userId, userId), eq(competitorAccounts.userId, userId)),
         eq(pipelineRuns.agent, agent),
         ...(command ? [eq(pipelineRuns.command, command)] : []),
+        ...(projectId
+          ? [or(eq(pipelineRuns.projectId, projectId), isNull(pipelineRuns.projectId))!]
+          : []),
         inArray(pipelineRuns.status, ["pending", "running"]),
         // Same 30-min orphan cutoff as assertNoActiveRun: stale pending rows
         // (failed/expired trigger, seeded row) must not show as active forever.

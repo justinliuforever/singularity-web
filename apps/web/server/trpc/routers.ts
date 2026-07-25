@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -496,12 +496,25 @@ export const appRouter = router({
           .where(and(eq(channels.userId, ctx.user.id), eq(channels.slug, input.accountSlug)))
           .limit(1);
         if (!account) return null;
-        // Account-level active Bible — surfaced as the persistent top-bar chip.
+        // Account-level active Bible — surfaced as the persistent top-bar chip. Scalars
+        // only: this runs on every navigation, so never pull poetBible.content in here.
         const [activeBible] = await db
           .select({ id: poetBible.id, name: poetBible.name })
           .from(poetBible)
           .where(and(eq(poetBible.channelId, account.id), eq(poetBible.isActive, true)))
           .limit(1);
+        // A parked import is neither active nor absent; without this the chip reads
+        // 未设置 while finished bibles sit waiting for review.
+        const [awaiting] = await db
+          .select({ n: count() })
+          .from(poetBible)
+          .where(
+            and(
+              eq(poetBible.channelId, account.id),
+              eq(poetBible.isActive, false),
+              sql`exists (select 1 from jsonb_array_elements(${poetBible.importFlags}) f where (f->>'resolved') is distinct from 'true')`,
+            ),
+          );
         let project: {
           name: string;
           slug: string;
@@ -527,6 +540,7 @@ export const appRouter = router({
             slug: account.slug,
             platform: account.platform,
             activeBible: activeBible ?? null,
+            awaitingReviewCount: awaiting?.n ?? 0,
           },
           project,
         };
@@ -1224,11 +1238,15 @@ export const appRouter = router({
           progress: pipelineRuns.progress,
           total: pipelineRuns.total,
           channelSlug: channels.slug,
+          // The default project shares the account slug, but a named one does not — the
+          // indicator was deep-linking every run to the default project's page.
+          projectSlug: projects.slug,
           competitorAccountId: pipelineRuns.competitorAccountId,
           targetName: sql<string>`coalesce(${channels.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未知目标')`,
         })
         .from(pipelineRuns)
         .leftJoin(channels, eq(channels.id, pipelineRuns.channelId))
+        .leftJoin(projects, eq(projects.id, pipelineRuns.projectId))
         .leftJoin(competitorAccounts, eq(competitorAccounts.id, pipelineRuns.competitorAccountId))
         .where(
           and(

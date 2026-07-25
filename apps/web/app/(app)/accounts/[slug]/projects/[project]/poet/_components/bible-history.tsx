@@ -19,6 +19,12 @@ type Props = {
   bibles: PoetBible[];
 };
 
+// activateBible rejects a bible with open flags; the sibling review card enforces this
+// but this button did not, so the only feedback was a server error.
+function unresolvedFlags(b: PoetBible): number {
+  return (b.importFlags ?? []).filter((f) => !f.resolved).length;
+}
+
 export function BibleHistory({ bibles }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -95,7 +101,12 @@ export function BibleHistory({ bibles }: Props) {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={pendingId !== null}
+                  disabled={pendingId !== null || unresolvedFlags(b) > 0}
+                  title={
+                    unresolvedFlags(b) > 0
+                      ? `还有 ${unresolvedFlags(b)} 个存疑项未确认，确认后才能激活`
+                      : undefined
+                  }
                   onClick={() => {
                     setPendingId(b.id);
                     activate.mutate({ bibleId: b.id });
