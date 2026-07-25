@@ -93,8 +93,8 @@ export default async function AccountBiblePage({ params }: Props) {
           </p>
           <p>
             <span className="font-medium text-foreground">各功能按需读取章节（括号内是圣经正文里的标记）：</span>
-            短稿（约 5 分钟以内）读 定位 POSITIONING、人设 PERSONA、内容规则 CONTENT_RULES、方法论 METHODOLOGY；
-            长稿（10 分钟以上）走「大纲 → 分段扩写」，这两步只跟 SOP 和素材，不读圣经章节；
+            短稿（不足 10 分钟，中文约 2000 字以内）读 定位 POSITIONING、人设 PERSONA、内容规则 CONTENT_RULES、方法论 METHODOLOGY；
+            长稿（10 分钟及以上）走「大纲 → 分段扩写」，这两步只跟 SOP 和素材，不读圣经章节；
             选题分析读 定位、受众 AUDIENCE、内容支柱 CONTENT_PILLARS、内容规则、选题框架 TOPIC_FRAMEWORK、信息源 INFORMATION_SOURCES；
             巡视对标读 定位、受众、内容规则。
             旧格式圣经（正文里没有这些英文标记的）不支持按需读取，会整本传入——重新生成一版即可。
