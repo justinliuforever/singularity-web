@@ -13,10 +13,13 @@
   --font-heading: var(--font-display);
   --font-brand: var(--font-brand-cjk), var(--font-display);
   --color-clerk: var(--clerk);
+  --color-clerk-deep: var(--clerk-deep);
   --color-clerk-foreground: var(--clerk-foreground);
   --color-muse: var(--muse);
+  --color-muse-deep: var(--muse-deep);
   --color-muse-foreground: var(--muse-foreground);
   --color-poet: var(--poet);
+  --color-poet-deep: var(--poet-deep);
   --color-poet-foreground: var(--poet-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -57,86 +60,108 @@
 }
 
 :root {
-  /* Agent accents from archive: Clerk purple #6C5CE7, Muse green #22C55E, Poet orange #F97316 */
-  --clerk: #6C5CE7;
-  --clerk-foreground: oklch(0.985 0 0);
-  --muse: #22C55E;
-  --muse-foreground: oklch(0.985 0 0);
-  --poet: #F97316;
-  --poet-foreground: oklch(0.985 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Crew accents per the brand VI: 操盘小鹅 blue, 灵感小鹅 green, 神笔小鹅 coral.
+     These are FILL values (goose bodies, dots, ticks). On the ivory ground they sit
+     at ~3:1, so small text and icons must use the -deep pair instead — which is also
+     the beak/foot shade GooseMark tones reach for. Foregrounds are ink, not ivory:
+     ivory on these mid-tones only reaches 2.8:1. */
+  --clerk: #6a9bcc;
+  /* A shade under the VI's #4f7ba8 so 10px SOP section numbers clear AA on ivory. */
+  --clerk-deep: #4a739e;
+  --clerk-foreground: #141413;
+  --muse: #788c5d;
+  --muse-deep: #5c6e46;
+  --muse-foreground: #141413;
+  --poet: #d97757;
+  --poet-deep: #b8563a;
+  --poet-foreground: #141413;
+  --goose-body: #d97757;
+  --goose-trim: #b8563a;
+  --goose-wing: #ffffff96;
+  --goose-eye: #141413;
+  /* Warm three-step ground: page recedes, cards float on it, muted sinks below both. */
+  --background: #efeee6;
+  --foreground: #141413;
+  --card: #faf9f5;
+  --card-foreground: #141413;
+  --popover: #faf9f5;
+  --popover-foreground: #141413;
+  /* Ink, not coral — coral stays an accent so buttons don't compete with the crew colors. */
+  --primary: #141413;
+  --primary-foreground: #faf9f5;
+  --secondary: #e8e6dc;
+  --secondary-foreground: #141413;
+  --muted: #e8e6dc;
+  --muted-foreground: #6b6a62;
+  --accent: #e8e6dc;
+  --accent-foreground: #141413;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: #14141318;
+  --input: #14141426;
+  --ring: #d97757;
+  --chart-1: #d97757;
+  --chart-2: #6a9bcc;
+  --chart-3: #788c5d;
+  --chart-4: #b0aea5;
+  --chart-5: #141413;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #faf9f5;
+  --sidebar-foreground: #141413;
+  --sidebar-primary: #141413;
+  --sidebar-primary-foreground: #faf9f5;
+  --sidebar-accent: #e8e6dc;
+  --sidebar-accent-foreground: #141413;
+  --sidebar-border: #14141318;
+  --sidebar-ring: #d97757;
 }
 
 .dark {
-  /* Agent accents in dark mode: slightly lifted for contrast on dark bg */
-  --clerk: #8B7BFF;
-  --clerk-foreground: oklch(0.145 0 0);
-  --muse: #4ADE80;
-  --muse-foreground: oklch(0.145 0 0);
-  --poet: #FB923C;
-  --poet-foreground: oklch(0.145 0 0);
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Crew accents lifted for contrast on the ink ground; -deep drops to the light value. */
+  --clerk: #8ab4dd;
+  --clerk-deep: #6a9bcc;
+  --clerk-foreground: #141413;
+  --muse: #9bb07d;
+  --muse-deep: #788c5d;
+  --muse-foreground: #141413;
+  --poet: #e08a6a;
+  --poet-deep: #d97757;
+  --poet-foreground: #141413;
+  /* VI dark treatment: coral body keeps its hue, trim + eye reverse to ivory. */
+  --goose-body: #d97757;
+  --goose-trim: #faf9f5;
+  --goose-wing: #ffffff5c;
+  --goose-eye: #faf9f5;
+  --background: #141413;
+  --foreground: #f2f0e9;
+  --card: #201d1a;
+  --card-foreground: #f2f0e9;
+  --popover: #201d1a;
+  --popover-foreground: #f2f0e9;
+  --primary: #f2f0e9;
+  --primary-foreground: #141413;
+  --secondary: #2a2724;
+  --secondary-foreground: #f2f0e9;
+  --muted: #2a2724;
+  --muted-foreground: #a5a299;
+  --accent: #2a2724;
+  --accent-foreground: #f2f0e9;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: #ffffff1c;
+  --input: #ffffff2b;
+  --ring: #d97757;
+  --chart-1: #e08a6a;
+  --chart-2: #8ab4dd;
+  --chart-3: #9bb07d;
+  --chart-4: #a5a299;
+  --chart-5: #f2f0e9;
+  --sidebar: #1c1b19;
+  --sidebar-foreground: #f2f0e9;
+  --sidebar-primary: #f2f0e9;
+  --sidebar-primary-foreground: #141413;
+  --sidebar-accent: #2a2724;
+  --sidebar-accent-foreground: #f2f0e9;
+  --sidebar-border: #ffffff1c;
+  --sidebar-ring: #d97757;
 }
 
 @layer base {
@@ -151,12 +176,14 @@
   }
 }
 
-@keyframes splash-draw {
+@keyframes splash-goose-in {
   from {
-    stroke-dashoffset: 400;
+    opacity: 0;
+    transform: translateY(10px);
   }
   to {
-    stroke-dashoffset: 0;
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -172,23 +199,17 @@
   }
 }
 
-.splash-line {
-  fill: none;
-  stroke-dasharray: 400;
-  stroke-dashoffset: 400;
-  animation: splash-draw 1.2s ease-in-out forwards;
+/* The three crew geese land in sequence — same stagger the drawn lines used to have. */
+.splash-goose {
+  animation: splash-goose-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-
-.splash-line-clerk {
-  stroke: var(--clerk);
+.splash-goose-1 {
   animation-delay: 0s;
 }
-.splash-line-muse {
-  stroke: var(--muse);
+.splash-goose-2 {
   animation-delay: 0.15s;
 }
-.splash-line-poet {
-  stroke: var(--poet);
+.splash-goose-3 {
   animation-delay: 0.3s;
 }
 
@@ -297,7 +318,7 @@
   @apply border-clerk/40 bg-clerk/10 font-medium text-foreground lg:border-transparent lg:bg-clerk/10;
 }
 .sop-toc-num {
-  @apply font-mono text-[10px] text-clerk;
+  @apply font-mono text-[10px] text-clerk-deep;
 }
 .sop-toc-text {
   @apply max-w-40 truncate lg:max-w-full;
@@ -330,7 +351,7 @@
   @apply my-3.5;
 }
 .prose-sop ul {
-  @apply my-3.5 ml-5 list-disc space-y-1.5 marker:text-clerk/60;
+  @apply my-3.5 ml-5 list-disc space-y-1.5 marker:text-clerk-deep/70;
 }
 .prose-sop ol {
   @apply my-3.5 ml-5 list-decimal space-y-1.5 marker:font-mono marker:text-xs marker:text-muted-foreground;

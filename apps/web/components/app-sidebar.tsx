@@ -6,6 +6,8 @@ import { useState } from "react";
 import { ChevronDown, Gauge, Plus, ScanSearch, ShieldCheck, Tv } from "lucide-react";
 
 import { NewAccountSheet } from "@/app/(app)/accounts/_components/new-account-sheet";
+import { GooseMark } from "@/components/goose-mark";
+import { Wordmark } from "@/components/wordmark";
 import type { SidebarAccount } from "@/lib/sidebar-data";
 import {
   Sidebar,
@@ -44,8 +46,9 @@ export function AppSidebar({
   return (
     <Sidebar>
       <SidebarHeader className="px-6 pt-10 pb-6">
-        <Link href="/" className="font-brand text-2xl leading-none">
-          搬砖小鹅 <span className="font-display italic">Goooose</span>
+        <Link href="/" className="flex items-center gap-2.5 text-2xl leading-none">
+          <GooseMark className="size-7 shrink-0" />
+          <Wordmark />
         </Link>
       </SidebarHeader>
 

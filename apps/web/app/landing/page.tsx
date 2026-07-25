@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { GooseMark } from "@/components/goose-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Wordmark } from "@/components/wordmark";
 import { APP_VERSION_LABEL } from "@/lib/version";
 
 import { BetaCta } from "./beta-cta";
@@ -59,8 +61,9 @@ export default function LandingPage() {
       </svg>
 
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <span className="font-brand text-xl leading-none">
-          搬砖小鹅 <span className="font-display italic">Goooose</span>
+        <span className="flex items-center gap-2 text-xl leading-none">
+          <GooseMark className="size-6 shrink-0" />
+          <Wordmark />
         </span>
         <Button render={<Link href="/api/auth/sign-in" prefetch={false} />} variant="ghost" size="sm">
           登录
@@ -73,34 +76,20 @@ export default function LandingPage() {
             <span className="size-1.5 animate-pulse rounded-full bg-poet" />
             内测招募中
           </Badge>
-          <h1 className="font-brand text-5xl leading-tight sm:text-7xl">
-            搬砖小鹅 <span className="font-display italic">Goooose</span>
+          <h1 className="text-5xl leading-tight sm:text-7xl">
+            <Wordmark />
           </h1>
           <p className="text-base tracking-wide text-muted-foreground sm:text-lg">
             AI 内容教练 · 看对标 → 出选题 → 写稿
           </p>
         </div>
 
-        <svg viewBox="0 0 200 100" className="w-56 overflow-visible sm:w-64" fill="none" aria-hidden>
-          <path
-            className="splash-line splash-line-clerk"
-            d="M10,80 C40,80 60,20 100,50 C140,80 160,20 190,20"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-muse"
-            d="M10,20 C40,20 60,80 100,50 C140,20 160,80 190,80"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-poet"
-            d="M10,50 C50,10 150,90 190,50"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-        </svg>
+        {/* The crew, in their own colors: 操盘 / 灵感 / 神笔 */}
+        <div className="flex items-end justify-center gap-6 sm:gap-10">
+          <GooseMark tone="clerk" className="splash-goose splash-goose-1 w-16 sm:w-20" />
+          <GooseMark tone="muse" className="splash-goose splash-goose-2 w-16 sm:w-20" />
+          <GooseMark tone="poet" className="splash-goose splash-goose-3 w-16 sm:w-20" />
+        </div>
 
         <div className="grid w-full max-w-3xl gap-4 text-left sm:grid-cols-3">
           {MODULES.map((m) => (

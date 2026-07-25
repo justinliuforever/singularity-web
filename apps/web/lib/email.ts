@@ -29,7 +29,7 @@ export function renderEmailShell(args: {
           <td style="padding:56px 24px 48px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="13" height="13" bgcolor="#E8850C" style="background-color:#E8850C;border-radius:3px;font-size:0;line-height:0;">&nbsp;</td>
+                <td width="13" height="13" bgcolor="#d97757" style="background-color:#d97757;border-radius:3px;font-size:0;line-height:0;">&nbsp;</td>
                 <td style="padding-left:9px;font-family:${FONT};font-size:17px;font-weight:700;color:#0A0A0A;letter-spacing:-0.2px;">Goooose</td>
               </tr>
             </table>

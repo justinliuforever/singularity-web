@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { GooseMark } from "@/components/goose-mark";
+import { Wordmark } from "@/components/wordmark";
+
 type Props = {
   redirectTo: string;
   duration?: number;
@@ -55,37 +58,17 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
       </svg>
 
       <div className="relative flex flex-col items-center gap-12">
-        <h1 className="font-brand text-6xl leading-none select-none sm:text-7xl">
-          搬砖小鹅 <span className="font-display italic">Goooose</span>
+        <h1 className="text-6xl leading-none select-none sm:text-7xl">
+          <Wordmark />
         </h1>
         <p className="-mt-8 text-sm tracking-wide text-muted-foreground select-none">
           看对标 → 出选题 → 写稿
         </p>
-        <svg
-          viewBox="0 0 200 100"
-          className="w-56 overflow-visible sm:w-64"
-          fill="none"
-          aria-hidden
-        >
-          <path
-            className="splash-line splash-line-clerk"
-            d="M10,80 C40,80 60,20 100,50 C140,80 160,20 190,20"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-muse"
-            d="M10,20 C40,20 60,80 100,50 C140,20 160,80 190,80"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-poet"
-            d="M10,50 C50,10 150,90 190,50"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-        </svg>
+        <div className="flex items-end justify-center gap-6 sm:gap-8">
+          <GooseMark tone="clerk" className="splash-goose splash-goose-1 w-14 sm:w-16" />
+          <GooseMark tone="muse" className="splash-goose splash-goose-2 w-14 sm:w-16" />
+          <GooseMark tone="poet" className="splash-goose splash-goose-3 w-14 sm:w-16" />
+        </div>
         <div className="flex gap-2">
           <span className="splash-dot splash-dot-1 size-2 rounded-full bg-clerk" />
           <span className="splash-dot splash-dot-2 size-2 rounded-full bg-muse" />
