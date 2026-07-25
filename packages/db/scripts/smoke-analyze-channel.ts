@@ -10,6 +10,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { pipelineRuns } from "../src/schema/runs";
+import { users } from "../src/schema/users";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../../../.env.local") });
@@ -23,7 +24,12 @@ if (!channelId) {
 const client = postgres(process.env.DATABASE_URL!, { prepare: false });
 const db = drizzle(client);
 
+const email = process.argv[3];
+
 try {
+  const [user] = email
+    ? await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+    : [undefined];
   const [run] = await db
     .insert(pipelineRuns)
     .values({
@@ -36,11 +42,12 @@ try {
         limit: 5,
         source: "popular",
         mode: "overwrite",
-        language: "en",
+        language: "zh",
       },
+      ...(user ? { userId: user.id } : {}),
     })
     .returning({ id: pipelineRuns.id });
-  console.log(JSON.stringify({ runId: run!.id, channelId }));
+  console.log(JSON.stringify({ runId: run!.id, channelId, userId: user?.id ?? null }));
 } finally {
   await client.end();
 }
