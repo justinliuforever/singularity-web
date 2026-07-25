@@ -187,21 +187,40 @@ async function triggerOrFailRun(
   }
 }
 
-// Single minutes pool. Generation tasks charge fixed/target-duration minutes at
-// trigger; analysis tasks are threshold-checked here and the worker settles actual
-// video minutes at run end (overshoot bounded by the per-user concurrency cap).
-const GENERATION_TASK_MINUTES: Record<string, number> = {
-  "poet-generate-bible": GENERATION_MINUTES.bible,
-  "poet-import-bible": GENERATION_MINUTES.bibleImport,
-  "poet-analyze-custom-topic": GENERATION_MINUTES.topic,
-  "clerk-analyze-single-video": GENERATION_MINUTES.singleVideo,
-};
-const CONTENT_TASKS = new Set(["clerk-analyze-channel", "muse-monitor-competitors"]);
+// Single monthly minutes pool, one entry per task below.
+export type RunTaskId =
+  | "clerk-analyze-channel"
+  | "clerk-analyze-single-video"
+  | "clerk-detect-channel-series"
+  | "muse-monitor-competitors"
+  | "poet-analyze-custom-topic"
+  | "poet-generate-bible"
+  | "poet-generate-script"
+  | "poet-import-bible";
 
-async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: number): Promise<number> {
-  const charge =
-    quotaMinutes ?? (taskId === "poet-generate-script" ? scriptMinutes() : GENERATION_TASK_MINUTES[taskId]);
-  if (charge === undefined && !CONTENT_TASKS.has(taskId)) return 0;
+// Every task must declare a cost model. A task missing from this table used to fall
+// through to "charge nothing", which is how clerk-detect-channel-series shipped unmetered;
+// keying on RunTaskId makes that omission a typecheck failure instead.
+//   number          — fixed charge at trigger
+//   byContent       — threshold-checked here, worker settles actual minutes at run end
+//   byTargetDuration— script length decides the charge
+//   free            — deliberately unmetered, pending a price
+const TASK_COST: Record<RunTaskId, number | "byContent" | "byTargetDuration" | "free"> = {
+  "clerk-analyze-channel": "byContent",
+  "clerk-analyze-single-video": GENERATION_MINUTES.singleVideo,
+  "clerk-detect-channel-series": "free",
+  "muse-monitor-competitors": "byContent",
+  "poet-analyze-custom-topic": GENERATION_MINUTES.topic,
+  "poet-generate-bible": GENERATION_MINUTES.bible,
+  "poet-generate-script": "byTargetDuration",
+  "poet-import-bible": GENERATION_MINUTES.bibleImport,
+};
+
+async function assertRunQuota(userId: string, taskId: RunTaskId, quotaMinutes?: number): Promise<number> {
+  const cost = TASK_COST[taskId];
+  if (cost === "free" && quotaMinutes === undefined) return 0;
+  const fixed = cost === "byTargetDuration" ? scriptMinutes() : typeof cost === "number" ? cost : undefined;
+  const charge = quotaMinutes ?? fixed;
   const q = await checkMinutes(db, { userId, need: charge ?? 1 });
   if (!q.allowed) {
     throw new TRPCError({
@@ -217,7 +236,7 @@ async function assertRunQuota(userId: string, taskId: string, quotaMinutes?: num
 async function stageAndTriggerRun(args: {
   owner: { channelId: string } | { competitorAccountId: string };
   agent: "clerk" | "muse" | "poet";
-  taskId: string;
+  taskId: RunTaskId;
   config: Record<string, unknown>;
   payload: Record<string, unknown>;
   projectId?: string;
@@ -1300,6 +1319,11 @@ export const appRouter = router({
           )
           .limit(1);
         if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+        // Cancel refunds unconditionally, so a terminal run must never reach it — otherwise
+        // a settled run's minutes can be refunded by canceling it after the fact.
+        if (run.status !== "pending" && run.status !== "running") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "任务已结束，无法取消" });
+        }
 
         const triggerRunId = (run.configJson as { triggerRunId?: string } | null)?.triggerRunId;
         if (triggerRunId) {

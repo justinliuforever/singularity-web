@@ -7,6 +7,7 @@
     "dev:webpack": "NODE_OPTIONS='--max-old-space-size=4096' next dev --no-turbopack",
     "build": "next build",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint"
   },
   "dependencies": {

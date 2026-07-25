@@ -105,7 +105,9 @@ export default async function AccountDetailPage({ params }: Props) {
           <h2 className="text-sm font-medium text-muted-foreground">
             ① 频道圣经 · 账号的人设 / 受众 / 更新方向
           </h2>
-          {activeBible ? (
+          {/* Any bible row at all — a parked import has none active, and hiding the entry
+              then strands it on a page the user can't reach from here. */}
+          {activeBibleRows.length > 0 ? (
             <Button variant="ghost" size="sm" render={<Link href={`/accounts/${a}/bible`} />}>
               管理圣经
             </Button>

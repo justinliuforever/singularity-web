@@ -71,8 +71,10 @@ function GlobalRunsIndicatorInner() {
     };
   }, [open]);
 
+  // Idle sessions were the bulk of all traffic: poll fast only while something is running,
+  // and keep a slow tick so a run started elsewhere still surfaces without a focus event.
   const listQuery = trpc.pipeline.listActiveAll.useQuery(undefined, {
-    refetchInterval: 8_000,
+    refetchInterval: (q) => (q.state.data?.length ? 8_000 : 60_000),
     refetchOnWindowFocus: true,
   });
   const runs: RunRow[] = listQuery.data ?? [];

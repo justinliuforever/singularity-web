@@ -8,6 +8,7 @@ export const AGENT_LABEL: Record<string, string> = {
 
 export const COMMAND_LABEL: Record<string, string> = {
   "clerk-analyze-channel": "频道分析",
+  "clerk-analyze-single-video": "单条拆解",
   "clerk-detect-channel-series": "系列归类",
   "muse-monitor-competitors": "巡视对标",
   "poet-generate-bible": "频道圣经",

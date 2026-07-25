@@ -55,7 +55,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - commit message 用简洁英文，**不**加 Co-Authored-By trailer；用 Conventional Commits + 版本 scope（如 `feat(v0.6): ...` / `fix(v0.6): ...` / `docs(v0.6): ...`），版本号随当前 Beta 版本走
 - 圣经为锚点化格式：`TOPIC:`/`HOST:` 行 + 9 个英文锚点章节（POSITIONING/PERSONA/AUDIENCE/CONTENT_PILLARS/CONTENT_RULES/METHODOLOGY/INFORMATION_SOURCES/TOPIC_FRAMEWORK/FACT_SHEET）；下游用 `selectBibleSections` 按需取节（无锚点旧圣经回退整块）
 - commit 后**不要**自动 `git push`；push 由用户自己执行，除非用户在当前消息里明确要求 push
-- 改完 `packages/{domain,integrations,prompts}/**` 或 `apps/worker/**` 后**必须**重新部署 Trigger.dev（Vercel 自动部署，Trigger.dev 不会）
+- 改完 `packages/{db,domain,integrations,prompts}/**` 或 `apps/worker/**` 后**必须**重新部署 Trigger.dev（Vercel 自动部署，Trigger.dev 不会）。`packages/db` 同样算数：worker 从它 import schema、配额与结算函数
 
 ## 核心 IP（`packages/prompts` 提示词 + `packages/domain` 服务）
 
