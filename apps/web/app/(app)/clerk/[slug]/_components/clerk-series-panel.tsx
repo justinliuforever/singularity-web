@@ -70,7 +70,7 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
 
   const startAnalysis = trpc.clerk.startAnalysis.useMutation({
     onSuccess: () => {
-      toast.success("已针对该系列触发 Clerk 分析");
+      toast.success("已针对该系列触发操盘小鹅分析");
       setOpenSeries(null);
       // Re-render the page so getActiveAgentRun picks up this run and ClerkRunButton
       // takes over progress tracking + completion refresh — otherwise the run is

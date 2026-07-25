@@ -1,9 +1,9 @@
 // Run display labels shared by the active-runs banner and the global indicator —
 // a new task id must be added here exactly once.
 export const AGENT_LABEL: Record<string, string> = {
-  clerk: "Clerk",
-  muse: "Muse",
-  poet: "Poet",
+  clerk: "操盘小鹅",
+  muse: "灵感小鹅",
+  poet: "神笔小鹅",
 };
 
 export const COMMAND_LABEL: Record<string, string> = {
@@ -16,7 +16,7 @@ export const COMMAND_LABEL: Record<string, string> = {
   "poet-generate-script": "脚本生成",
 };
 
-// Bible runs are stored as agent="poet"; show "频道圣经" as the badge so users don't see a misleading "Poet".
+// Bible runs are stored as agent="poet"; show "频道圣经" as the badge so users don't see a misleading "神笔小鹅".
 export function runBadgeLabel(agent: string, command: string): string {
   if (command === "poet-generate-bible") return "频道圣经";
   if (command === "poet-import-bible") return "圣经导入";

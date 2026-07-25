@@ -106,7 +106,7 @@ export default async function SopsLibraryPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">SOP 库</h1>
         <p className="text-sm text-muted-foreground">
-          SOP 是 Clerk 从频道拆解出的可复用写稿方法论 — 任何项目都可以在项目主页选用任意一份用于写稿。
+          SOP 是操盘小鹅从频道拆解出的可复用写稿方法论 — 任何项目都可以在项目主页选用任意一份用于写稿。
         </p>
       </header>
 
@@ -115,7 +115,7 @@ export default async function SopsLibraryPage() {
       {sops.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
           <span>还没有任何 SOP</span>
-          <Button render={<Link href="/clerk" />}>去 Clerk 拆解</Button>
+          <Button render={<Link href="/clerk" />}>去操盘小鹅拆解</Button>
         </div>
       ) : (
         <>

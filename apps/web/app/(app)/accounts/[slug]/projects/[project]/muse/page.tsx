@@ -216,7 +216,7 @@ export default async function MuseChannelPage({ params }: Props) {
                 />
               }
             >
-              {approvedUnscripted} 个待写 · 去 Poet
+              {approvedUnscripted} 个待写 · 去神笔小鹅
             </Button>
           ) : null}
         </div>
@@ -234,7 +234,7 @@ export default async function MuseChannelPage({ params }: Props) {
       {boundCompetitors.length > 0 ? (
         <section className="flex flex-col gap-2 rounded-lg border bg-card/50 p-4">
           <h2 className="text-xs font-medium text-muted-foreground">
-            巡视对象 — Muse 监控的是这些对标账号的内容，不是你自己的账号
+            巡视对象 — 灵感小鹅监控的是这些对标账号的内容，不是你自己的账号
           </h2>
           <div className="flex flex-wrap gap-2">
             {boundCompetitors.map((c) => (
@@ -508,11 +508,11 @@ export default async function MuseChannelPage({ params }: Props) {
           <span>还没有选题</span>
           {activeCompetitorCount > 0 ? (
             <span className="text-xs">
-              点击右上角「开始巡视」— Muse 会扫描上方对标账号的最新内容，提取爆款机制，为你的频道生成选题
+              点击右上角「开始巡视」— 灵感小鹅会扫描上方对标账号的最新内容，提取爆款机制，为你的频道生成选题
             </span>
           ) : (
             <>
-              <span className="text-xs">Muse 需要至少一个对标账号才能巡视</span>
+              <span className="text-xs">灵感小鹅需要至少一个对标账号才能巡视</span>
               <Button
                 size="sm"
                 variant="outline"

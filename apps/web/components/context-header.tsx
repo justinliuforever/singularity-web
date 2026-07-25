@@ -43,7 +43,7 @@ export function ContextHeader() {
             href="/clerk"
             className="shrink-0 text-muted-foreground hover:text-foreground"
           >
-            Clerk · 分析师
+            操盘小鹅
           </Link>
           <ChevronRight className="size-3 shrink-0 text-muted-foreground opacity-50" />
         </>

@@ -56,7 +56,7 @@ export default async function ClerkLandingPage() {
       <header className="flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-3">
           <span className="size-2 shrink-0 rounded-full bg-clerk" />
-          <h1 className="text-2xl font-semibold tracking-tight">Clerk · 分析师</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">操盘小鹅</h1>
         </div>
         <p className="text-xs text-muted-foreground">
           拆解对标账号的视频结构、钩子、节奏，沉淀可复用的写稿 SOP — 产出进库，任何项目都能选用。

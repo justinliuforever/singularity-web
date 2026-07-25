@@ -8,17 +8,17 @@ import { BetaCta } from "./beta-cta";
 
 const MODULES = [
   {
-    name: "Clerk · 看对标",
+    name: "操盘小鹅 · 看对标",
     dot: "bg-clerk",
     desc: "拆解对标频道与爆款视频，沉淀成可复用的创作 SOP",
   },
   {
-    name: "Muse · 出选题",
+    name: "灵感小鹅 · 出选题",
     dot: "bg-muse",
     desc: "监控你的对标账号，从最新爆款里生成贴合定位的选题",
   },
   {
-    name: "Poet · 写稿",
+    name: "神笔小鹅 · 写稿",
     dot: "bg-poet",
     desc: "基于你的人设圣经与选题，产出可直接开拍的口播稿",
   },

@@ -125,8 +125,7 @@ export function WriteScriptButton({
           <AlertDialogHeader>
             <AlertDialogTitle>该频道还没有 AI 参考 SOP</AlertDialogTitle>
             <AlertDialogDescription>
-              SOP 来自 Clerk 分析，缺少它脚本会少了结构化的钩子 / 留人指导。建议先用 Clerk
-              生成 SOP，再回来写稿。
+              SOP 来自操盘小鹅分析，缺少它脚本会少了结构化的钩子 / 留人指导。建议先用操盘小鹅生成 SOP，再回来写稿。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -136,7 +135,7 @@ export function WriteScriptButton({
                 variant="outline"
                 render={<Link href={`/clerk/${encodeURIComponent(channelSlug)}`} />}
               >
-                去 Clerk 分析
+                去操盘小鹅分析
               </Button>
             ) : null}
             <AlertDialogAction

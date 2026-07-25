@@ -21,7 +21,7 @@ import {
 
 // SOP 库 is now a tab inside Clerk (clerk-tabs.tsx), not its own nav slot.
 const ANALYSIS = [
-  { label: "Clerk · 分析师", href: "/clerk", icon: ScanSearch },
+  { label: "操盘小鹅", href: "/clerk", icon: ScanSearch },
   { label: "用量与额度", href: "/usage", icon: Gauge },
 ];
 
