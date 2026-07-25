@@ -55,6 +55,7 @@ import { provisionalCompetitorKey } from "@goooose/domain/services/competitors";
 
 import { db } from "@/lib/db";
 import { ETA_JOB_COMMANDS } from "@/lib/eta-jobs";
+import { COMMAND_LABEL } from "@/lib/run-labels";
 import { accessRouter, adminRouter } from "./access";
 import { protectedProcedure, router } from "./init";
 import {
@@ -115,32 +116,39 @@ function slugify(name: string): string {
 type RunOwner = { channelId: string } | { competitorAccountId: string };
 
 async function assertNoActiveRun(owner: string | RunOwner, agent: "clerk" | "muse" | "poet") {
-  // Ignore "pending" rows older than 30 min — they're orphans (e.g. a smoke
-  // script staged the row but never triggered the task). Without this filter,
-  // a single orphan would block all future runs for the owner + agent.
   const ownerObj: RunOwner = typeof owner === "string" ? { channelId: owner } : owner;
   const ownerCond =
     "channelId" in ownerObj
       ? eq(pipelineRuns.channelId, ownerObj.channelId)
       : eq(pipelineRuns.competitorAccountId, ownerObj.competitorAccountId);
-  const orphanCutoff = new Date(Date.now() - 30 * 60 * 1000);
+  // The orphan cutoff has to sit in the WHERE, not after LIMIT 1: filtering in JS let a
+  // newer stale "pending" row mask an older live "running" one, unlocking duplicate runs.
   const [active] = await db
-    .select({ id: pipelineRuns.id, startedAt: pipelineRuns.startedAt })
+    .select({ id: pipelineRuns.id, command: pipelineRuns.command, startedAt: pipelineRuns.startedAt })
     .from(pipelineRuns)
-    .where(and(ownerCond, eq(pipelineRuns.agent, agent), inArray(pipelineRuns.status, ["pending", "running"])))
+    .where(
+      and(
+        ownerCond,
+        eq(pipelineRuns.agent, agent),
+        inArray(pipelineRuns.status, ["pending", "running"]),
+        freshActiveRunCond(),
+      ),
+    )
     .orderBy(desc(pipelineRuns.startedAt))
     .limit(1);
-  if (active && active.startedAt > orphanCutoff) {
+  if (active) {
+    const mins = Math.floor((Date.now() - active.startedAt.getTime()) / 60_000);
+    const label = COMMAND_LABEL[active.command] ?? active.command;
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "该目标当前已有运行中的任务，请等其完成后再启动",
+      message: `该目标正在运行「${label}」（已 ${mins} 分钟）。等它完成，或在右上角任务列表里取消后再启动`,
     });
   }
 }
 
-// Display-side twin of assertNoActiveRun's orphan cutoff: a "pending" row that never
-// started within 30 min (failed/expired trigger, seeded row) must not haunt the runs
-// indicator/banners forever. "running" rows are never filtered — the job owns them.
+// A "pending" row that never started within 30 min (failed/expired trigger, seeded row)
+// must not block or haunt the indicator forever. "running" rows are never filtered —
+// the job owns them until it finishes or the reaper sweeps it.
 function freshActiveRunCond() {
   return or(
     eq(pipelineRuns.status, "running"),
