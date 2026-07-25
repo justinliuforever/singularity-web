@@ -231,7 +231,7 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
         <SheetHeader>
           <SheetTitle>巡视对标账号</SheetTitle>
           <SheetDescription>
-            Muse 会扫描下面所选对标账号的{contentNoun}，提取爆款机制，为「{channelName}」生成选题。
+            灵感小鹅会扫描下面所选对标账号的{contentNoun}，提取爆款机制，为「{channelName}」生成选题。
           </SheetDescription>
         </SheetHeader>
 

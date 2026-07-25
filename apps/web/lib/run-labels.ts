@@ -1,9 +1,9 @@
 // Every new task id must be registered here — the active-runs banner and the global
 // indicator both read these labels.
 export const AGENT_LABEL: Record<string, string> = {
-  clerk: "Clerk",
-  muse: "Muse",
-  poet: "Poet",
+  clerk: "操盘小鹅",
+  muse: "灵感小鹅",
+  poet: "神笔小鹅",
 };
 
 export const COMMAND_LABEL: Record<string, string> = {

@@ -89,7 +89,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-6 p-6 sm:p-8">
-      <BackLink href="/clerk" label="Clerk · 分析师" />
+      <BackLink href="/clerk" label="操盘小鹅" />
 
       <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -146,7 +146,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card/40 p-10 text-sm text-muted-foreground">
           <span>还没拆解过这个对标</span>
           <span className="text-xs">
-            点上方「开始分析」— Clerk 会拆解 TA 的{itemNoun}，沉淀出可复用的 SOP
+            点上方「开始分析」— 操盘小鹅会拆解 TA 的{itemNoun}，沉淀出可复用的 SOP
           </span>
         </div>
       ) : (
@@ -226,7 +226,7 @@ export default async function ClerkCompetitorPage({ params }: Props) {
           <div className="rounded-lg border-2 border-dashed border-poet/40 bg-poet/5 p-4 text-sm">
             <span className="font-medium">SOP 已进库。</span>
             <span className="text-muted-foreground">
-              去任意项目主页的「写稿 SOP · 更换」里选用这份打法，Poet 写稿就会按它来。
+              去任意项目主页的「写稿 SOP · 更换」里选用这份打法，神笔小鹅写稿就会按它来。
             </span>
           </div>
         </section>

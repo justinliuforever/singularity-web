@@ -1,24 +1,27 @@
 import Link from "next/link";
 
+import { GooseMark } from "@/components/goose-mark";
+import { GooseWatch } from "@/components/goose-watch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Wordmark } from "@/components/wordmark";
 import { APP_VERSION_LABEL } from "@/lib/version";
 
 import { BetaCta } from "./beta-cta";
 
 const MODULES = [
   {
-    name: "Clerk · 看对标",
+    name: "操盘小鹅 · 看对标",
     dot: "bg-clerk",
     desc: "拆解对标频道与爆款视频，沉淀成可复用的创作 SOP",
   },
   {
-    name: "Muse · 出选题",
+    name: "灵感小鹅 · 出选题",
     dot: "bg-muse",
     desc: "监控你的对标账号，从最新爆款里生成贴合定位的选题",
   },
   {
-    name: "Poet · 写稿",
+    name: "神笔小鹅 · 写稿",
     dot: "bg-poet",
     desc: "基于你的人设圣经与选题，产出可直接开拍的口播稿",
   },
@@ -59,8 +62,9 @@ export default function LandingPage() {
       </svg>
 
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <span className="font-brand text-xl leading-none">
-          搬砖小鹅 <span className="font-display italic">Goooose</span>
+        <span className="brand-lockup flex items-center gap-2 text-xl leading-none">
+          <GooseMark className="size-6 shrink-0" />
+          <Wordmark />
         </span>
         <Button render={<Link href="/api/auth/sign-in" prefetch={false} />} variant="ghost" size="sm">
           登录
@@ -73,34 +77,27 @@ export default function LandingPage() {
             <span className="size-1.5 animate-pulse rounded-full bg-poet" />
             内测招募中
           </Badge>
-          <h1 className="font-brand text-5xl leading-tight sm:text-7xl">
-            搬砖小鹅 <span className="font-display italic">Goooose</span>
+          <h1 className="text-5xl leading-tight sm:text-7xl">
+            <Wordmark />
           </h1>
           <p className="text-base tracking-wide text-muted-foreground sm:text-lg">
             AI 内容教练 · 看对标 → 出选题 → 写稿
           </p>
         </div>
 
-        <svg viewBox="0 0 200 100" className="w-56 overflow-visible sm:w-64" fill="none" aria-hidden>
-          <path
-            className="splash-line splash-line-clerk"
-            d="M10,80 C40,80 60,20 100,50 C140,80 160,20 190,20"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-muse"
-            d="M10,20 C40,20 60,80 100,50 C140,20 160,80 190,80"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            className="splash-line splash-line-poet"
-            d="M10,50 C50,10 150,90 190,50"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-        </svg>
+        {/* The crew, in their own colors: 操盘 / 灵感 / 神笔. Each watches the pointer
+            on its own, so all three turn to you rather than moving as one block. */}
+        <div className="flex items-end justify-center gap-6 sm:gap-10">
+          <GooseWatch className="splash-goose splash-goose-1 block">
+            <GooseMark tone="clerk" className="w-16 sm:w-20" />
+          </GooseWatch>
+          <GooseWatch className="splash-goose splash-goose-2 block">
+            <GooseMark tone="muse" className="w-16 sm:w-20" />
+          </GooseWatch>
+          <GooseWatch className="splash-goose splash-goose-3 block">
+            <GooseMark tone="poet" className="w-16 sm:w-20" />
+          </GooseWatch>
+        </div>
 
         <div className="grid w-full max-w-3xl gap-4 text-left sm:grid-cols-3">
           {MODULES.map((m) => (

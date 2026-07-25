@@ -50,7 +50,7 @@ export function ProjectCompetitorsCard({
   const toastBound = (message: string) => {
     if (museHref) {
       toast.success(message, {
-        action: { label: "去 Muse 巡视", onClick: () => router.push(museHref) },
+        action: { label: "去灵感小鹅巡视", onClick: () => router.push(museHref) },
       });
     } else {
       toast.success(message);
@@ -118,7 +118,7 @@ export function ProjectCompetitorsCard({
             <SheetHeader>
               <SheetTitle>管理对标账号</SheetTitle>
               <SheetDescription>
-                从已有对标账号选择，或粘贴新链接导入并绑定。Muse 会巡视绑定的对标账号并生成选题。
+                从已有对标账号选择，或粘贴新链接导入并绑定。灵感小鹅会巡视绑定的对标账号并生成选题。
               </SheetDescription>
             </SheetHeader>
 
@@ -210,7 +210,7 @@ export function ProjectCompetitorsCard({
           <p className="text-xs text-muted-foreground">加载中…</p>
         ) : boundList.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            未绑定对标 — 点「管理对标」添加。Muse 需要至少一个对标才能巡视。
+            未绑定对标 — 点「管理对标」添加。灵感小鹅需要至少一个对标才能巡视。
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

@@ -97,7 +97,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
-      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="Poet · 写手" />
+      <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="神笔小鹅" />
 
       <header className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">

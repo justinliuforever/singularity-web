@@ -47,7 +47,7 @@ export default async function AccountBiblePage({ params }: Props) {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">频道圣经</h1>
           <p className="text-xs text-muted-foreground">
-            账号的人设 / 受众 / 更新方向 · Muse 和 Poet 都会读取生效中的版本
+            账号的人设 / 受众 / 更新方向 · 灵感小鹅和神笔小鹅都会读取生效中的版本
           </p>
         </div>
         <BibleGenerateSheet
@@ -125,7 +125,7 @@ export default async function AccountBiblePage({ params }: Props) {
       ) : (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-card/40 p-8 text-sm text-muted-foreground">
           <span>这个账号还没有频道圣经</span>
-          <span className="text-xs">账号的策略简报，Muse 和 Poet 都会以它为准</span>
+          <span className="text-xs">账号的策略简报，灵感小鹅和神笔小鹅都会以它为准</span>
           <BibleGenerateSheet
             channelId={channel.id}
             channelName={channel.name}

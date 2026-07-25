@@ -42,7 +42,7 @@ export function ChannelsList() {
         <div className="flex flex-col gap-1.5">
           <p className="text-sm font-medium">先建一个自己的频道</p>
           <p className="max-w-md text-xs text-muted-foreground">
-            频道是你的内容资产，沉淀定位与频道圣经；建好后在项目里绑定对标，Clerk、Muse、Poet 才能开工。
+            频道是你的内容资产，沉淀定位与频道圣经；建好后在项目里绑定对标，操盘小鹅、灵感小鹅、神笔小鹅才能开工。
           </p>
         </div>
         <NewAccountSheet size="lg" />

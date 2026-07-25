@@ -101,7 +101,7 @@ export function CustomTopicActions({
     if (
       !hasSop &&
       !confirm(
-        "该频道还没有 AI 参考 SOP（来自 Clerk 分析），脚本会缺少结构化的钩子 / 留人指导。建议先用 Clerk 生成 SOP。仍要继续写稿吗？",
+        "该频道还没有 AI 参考 SOP（来自操盘小鹅分析），脚本会缺少结构化的钩子 / 留人指导。建议先用操盘小鹅生成 SOP。仍要继续写稿吗？",
       )
     ) {
       return;
