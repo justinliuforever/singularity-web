@@ -599,3 +599,117 @@ Format as clean markdown.
 `;
   return args.language === 'zh' ? CHINESE_WRAPPER(inner) : inner;
 }
+
+type ImagePostArgs = {
+  channelName: string;
+  title: string;
+  engagementScore: number | null;
+  url: string;
+  caption: string;
+  slideCount?: number | null;
+  coverDescription?: string | null;
+  coverWhyItWorks?: string | null;
+  coverDiagnosis?: string | null;
+  coverTitleSuggestions?: string[] | null;
+  analysisSummary: string;
+  commentsSummary?: string | null;
+  language?: 'en' | 'zh';
+};
+
+// Image posts carry no audio and no runtime, so the video deep-dive's time axis has
+// nothing to bind to. Cover claims are gated on the vision columns actually being set —
+// those are written only by a real image read, so their absence means "never looked".
+export function buildImagePostSopPrompt(args: ImagePostArgs): string {
+  // Provenance gate: only coverDiagnosis / coverTitleSuggestions are written exclusively
+  // by a real image read. thumbnailDescription is NOT — with no image it gets guessed from
+  // the caption ("封面图很可能是…"), so relaying it would launder that guess as a finding.
+  const hasCover = Boolean(args.coverDiagnosis || args.coverTitleSuggestions?.length);
+  const coverBlock = hasCover
+    ? `\n\n## 封面（视觉分析结果）\n${[
+        args.coverDescription ? `- 画面构成：${args.coverDescription}` : null,
+        args.coverWhyItWorks ? `- 为什么抓人：${args.coverWhyItWorks}` : null,
+        args.coverDiagnosis ? `- 已识别的问题：${args.coverDiagnosis}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')}`
+    : '';
+
+  // Offering the section and then telling the model to skip it loses to the structure
+  // spec every time — it fills the header from the title and cites an analysis that was
+  // never run. With no cover read, the section simply does not exist.
+  const coverSection = hasCover
+    ? `**封面钩子**
+只使用上面「封面（视觉分析结果）」里已有的描述，不要凭标题或正文推测画面里有什么。封面在图文里承担视频"前3秒"的角色：它决定用户在信息流里停不停。写清楚它靠什么让人停手，以及哪里还能更强。
+
+`
+    : '';
+
+  const coverBan = hasCover
+    ? ''
+    : '\n\n**封面（硬规则）。** 这条笔记没有做过封面视觉分析，你看不到任何图。全文禁止出现关于封面画面的任何描述或判断（构图、配色、字号、人物、材质、场景、排版一律不准写），也不准写"视觉分析里提到""画面里可能是"这类措辞。不要写封面小节。';
+
+  const engagementStr =
+    args.engagementScore && args.engagementScore > 0
+      ? `${args.engagementScore.toLocaleString('en-US')}（互动分：点赞+收藏+评论+分享的加权值，不是播放量）`
+      : '不可用';
+
+  const slideLine = args.slideCount && args.slideCount > 0 ? `\n- **图片数：** ${args.slideCount} 张` : '';
+
+  const commentsBlock = args.commentsSummary
+    ? `\n\n## 读者怎么说（热门评论，按点赞排序）\n${args.commentsSummary}`
+    : '';
+  const commentsInstruction = args.commentsSummary
+    ? '\n\n在「可复用模板」之前插入一节 **读者共鸣**：把上面的评论归纳成一段话，回答"这篇为什么能爆"。把评论里反复出现的点和正文的具体写法对应起来；如果某条评论直接解释了某个结构选择，逐字引用 1-2 条。'
+    : '';
+
+  const inner = `你在拆解「${args.channelName}」的一篇小红书/抖音**图文帖**，产出一份可以照着复写的实战手册。
+
+## 这条内容
+- **标题：** ${args.title}
+- **互动量：** ${engagementStr}${slideLine}
+- **链接：** ${args.url}
+
+## 正文全文
+${args.caption}${coverBlock}
+
+## 已有的结构化分析
+${args.analysisSummary}${commentsBlock}
+
+## 输出结构
+
+**图文没有时间轴，也没有语音。**全文禁止出现 \`[m:ss]\` 时间码、"第几秒"、"完播率"、"观看时长"、"播放量"、"黄金前3秒"这类视频指标——它们在图文上不存在。定位一律用**阅读顺序**：标题 / 开头 / 第2段 / 中段 / 结尾，或第几张图。
+
+按下面的顺序写：
+
+${coverSection}**标题公式**
+- 逐字抄下标题原文
+- 拆出它的句式骨架，把可替换的部分写成占位符（例如「[节日/事件]，当然要自己[动手做]一[核心物品]」）
+- 说明这个句式踩中了什么心理（身份认同 / 好奇缺口 / 利益承诺 / 反差）
+- 给出 2-3 个用同一骨架换题材的新标题
+
+**正文结构逐段拆**
+把正文按语义切成 4-7 段，每段写：
+- **段落作用**：一句话
+- **原文**：逐字引用该段最关键的 1-2 句（只引用正文里真实出现的句子）
+- **底层心理**：2-3 句，说明这句为什么让人往下读
+- **本段钩子**：\`[钩子类型]："逐字原句"\`
+
+**情绪递进线**
+用一个序列描述情绪走向（例如"共识 → 私密 → 反差 → 共鸣 → 释放"），每一步标出对应的原句。
+
+**收尾与互动设计**
+结尾怎么收的、有没有显性 CTA、留白留在哪里、为什么会让人想评论。没有 CTA 就直说没有，并指出它靠什么替代。
+
+**可复用模板**
+这一节是整份文档的落点，必须能直接照着写下一篇：
+- **骨架表**：段位 | 段落名 | 作用 | 招式（把上面拆出的结构抽象成可复用的槽位，不要再复述本篇内容）
+- **句式库**：从本篇里提炼 3-5 个可以换题材直接套用的句式，每个配一句原文出处
+- **换题材演示**：挑一个和本篇不同的题材，用这套骨架写出标题 + 开头 2 句${commentsInstruction}
+
+**接地（硬规则）。** 所有引用必须逐字出自上面的「标题」「正文全文」，其余一律不加引号。不准发明句子、数字、价格、品牌、活动信息或 CTA。不准把一个短语扩写成完整句子再当作原文引用——原文只有短语就只引短语。如果正文很短（图文常见），就把手册写薄一点并直说内容有限，绝不为了填满结构而编。${coverBan}
+
+输出干净的 markdown，不要前言，不要把整篇包在代码块里。
+`;
+
+  return CHINESE_WRAPPER(inner);
+}

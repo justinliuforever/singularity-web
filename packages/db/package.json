@@ -36,7 +36,8 @@
     "clerk-video-stats": "tsx scripts/clerk-video-stats.ts",
     "inspect-video-metadata": "tsx scripts/inspect-video-metadata.ts",
     "smoke-analyze-channel": "tsx scripts/smoke-analyze-channel.ts",
-    "bible-import-smoke": "tsx scripts/bible-import-smoke.ts"
+    "bible-import-smoke": "tsx scripts/bible-import-smoke.ts",
+    "image-sop-smoke": "tsx scripts/image-sop-smoke.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",

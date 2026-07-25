@@ -14,7 +14,7 @@ import { userRunsQueue } from "../lib/queues";
 import { redactUngrounded } from "@goooose/domain/services/grounding";
 import { llm } from "@goooose/integrations/clients/llm";
 import { safeText } from "@goooose/integrations/utils";
-import { buildHottestSopPrompt } from "@goooose/prompts/clerk";
+import { buildHottestSopPrompt, buildImagePostSopPrompt } from "@goooose/prompts/clerk";
 import { generateText } from "ai";
 
 type Payload = {
@@ -66,13 +66,13 @@ export const analyzeSingleVideo = task({
         .where(eq(clerkVideos.id, payload.videoId))
         .limit(1);
       if (!video) throw new Error(`video ${payload.videoId} not found`);
-      // Image posts (XHS/Douyin) store the caption as "transcript" — not speech with timing,
-      // so a [m:ss] beat-by-beat deep-dive would be fabricated. Single-video SOP is video-only.
-      if (video.contentType === "xhs_image" || video.contentType === "douyin_image") {
-        throw new Error("图文帖没有语音内容，不支持单条拆解 SOP");
-      }
+      // Strategy comes off the row, never the payload — a run staged by an older web build
+      // must still route correctly.
+      const isImagePost = video.contentType.endsWith("_image");
       if (!video.transcript || !video.transcript.trim()) {
-        throw new Error("该视频没有字幕/转写，无法生成单条拆解 SOP");
+        throw new Error(
+          isImagePost ? "这条图文没有正文内容，无法拆解" : "该视频没有字幕/转写，无法生成单条拆解 SOP",
+        );
       }
 
       // The analyzed account's display name (own channel or competitor) — the prompt's only
@@ -96,17 +96,32 @@ export const analyzeSingleVideo = task({
 
       await setProgress(1, 3, "generating sop", "深度拆解这条内容（约 2-4 分钟）");
 
-      const prompt = buildHottestSopPrompt({
-        channelName,
-        title: video.title,
-        views: video.views ?? null,
-        durationSec: video.durationSec ?? 0,
-        url: video.url,
-        transcript: video.transcript,
-        analysisSummary: summarizeAnalysis(video),
-        commentsSummary: null,
-        language,
-      });
+      const prompt = isImagePost
+        ? buildImagePostSopPrompt({
+            channelName,
+            title: video.title,
+            engagementScore: video.views ?? null,
+            url: video.url,
+            caption: video.transcript,
+            coverDescription: video.thumbnailDescription,
+            coverWhyItWorks: video.thumbnailWhyItWorks,
+            coverDiagnosis: video.coverDiagnosis,
+            coverTitleSuggestions: video.coverTitleSuggestions,
+            analysisSummary: summarizeAnalysis(video),
+            commentsSummary: null,
+            language,
+          })
+        : buildHottestSopPrompt({
+            channelName,
+            title: video.title,
+            views: video.views ?? null,
+            durationSec: video.durationSec ?? 0,
+            url: video.url,
+            transcript: video.transcript,
+            analysisSummary: summarizeAnalysis(video),
+            commentsSummary: null,
+            language,
+          });
 
       const sopResult = await generateText({
         model: llm("pro"),
@@ -118,9 +133,22 @@ export const analyzeSingleVideo = task({
       const cleaned = safeText(sopResult.text);
       if (!cleaned) throw new Error("单条拆解返回为空，请重试");
 
+      // The draft cites the cached analysis, so grounding must include it or real findings
+      // get redacted as invented. Cover fields join only when a real image read happened —
+      // otherwise thumbnailDescription is a caption-derived guess and would be laundered
+      // into ground truth.
+      const coverAnalyzed = Boolean(video.coverDiagnosis || video.coverTitleSuggestions?.length);
       const grounded = await redactUngrounded({
         draft: cleaned,
-        source: video.transcript,
+        source: [
+          video.transcript,
+          summarizeAnalysis(video),
+          ...(coverAnalyzed
+            ? [video.thumbnailDescription, video.thumbnailWhyItWorks, video.coverDiagnosis]
+            : []),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
         language,
         logger,
       });

@@ -25,6 +25,7 @@ import { withProxyRetry, type ProxyPool } from "@goooose/integrations/proxy";
 import {
   buildAiSopReferencePrompt,
   buildHottestSopPrompt,
+  buildImagePostSopPrompt,
   buildHumanSopPrompt,
   buildSopPartialReducePrompt,
   buildVideoAnalysisPrompt,
@@ -1877,22 +1878,47 @@ export const analyzeChannel = task({
                 );
                 return null;
               }
-              return buildHottestSopPrompt({
-                channelName: channel.name,
-                title: top.title,
-                views: top.views ?? null,
-                durationSec: top.durationSec ?? 0,
-                url: top.url,
-                transcript: top.transcript,
-                analysisSummary: summarizeAnalysis(top),
-                commentsSummary: hottestCommentsSummary,
-                language,
-              });
+              // The top-engagement item on an XHS/Douyin account is routinely an image
+              // post; the video prompt would bind a time axis to a 0-second "video".
+              return top.contentType.endsWith("_image")
+                ? buildImagePostSopPrompt({
+                    channelName: channel.name,
+                    title: top.title,
+                    engagementScore: top.views ?? null,
+                    url: top.url,
+                    caption: top.transcript,
+                    coverDescription: top.thumbnailDescription,
+                    coverWhyItWorks: top.thumbnailWhyItWorks,
+                    coverDiagnosis: top.coverDiagnosis,
+                    coverTitleSuggestions: top.coverTitleSuggestions,
+                    analysisSummary: summarizeAnalysis(top),
+                    commentsSummary: hottestCommentsSummary,
+                    language,
+                  })
+                : buildHottestSopPrompt({
+                    channelName: channel.name,
+                    title: top.title,
+                    views: top.views ?? null,
+                    durationSec: top.durationSec ?? 0,
+                    url: top.url,
+                    transcript: top.transcript,
+                    analysisSummary: summarizeAnalysis(top),
+                    commentsSummary: hottestCommentsSummary,
+                    language,
+                  });
             },
             groundingSource: () => {
               const top = channelVideos[0];
               if (!top) return videosData;
-              return [top.transcript, summarizeAnalysis(top), hottestCommentsSummary]
+              const coverAnalyzed = Boolean(top.coverDiagnosis || top.coverTitleSuggestions?.length);
+              return [
+                top.transcript,
+                summarizeAnalysis(top),
+                hottestCommentsSummary,
+                ...(coverAnalyzed
+                  ? [top.thumbnailDescription, top.thumbnailWhyItWorks, top.coverDiagnosis]
+                  : []),
+              ]
                 .filter(Boolean)
                 .join("\n\n");
             },
