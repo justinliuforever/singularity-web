@@ -162,7 +162,7 @@ export async function verifyImageNumbers(
   imageBytes: Uint8Array,
   transcript: string,
   logger?: Logger,
-): Promise<string[]> {
+): Promise<{ diffs: string[]; ok: boolean }> {
   try {
     const r = await generateText({
       model: model(),
@@ -183,14 +183,17 @@ export async function verifyImageNumbers(
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return [];
-    return out
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l !== "OK");
+    if (!out || out === "OK") return { diffs: [], ok: true };
+    return {
+      diffs: out
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && l !== "OK"),
+      ok: true,
+    };
   } catch (err) {
     logger?.warn?.(`verifyImageNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
-    return [];
+    return { diffs: [], ok: false };
   }
 }
 
@@ -216,6 +219,7 @@ const MAX_PDF_PAGES = 40;
 const SINGLE_CALL_PAGES = 15;
 const CHUNK_PAGES = 8;
 const MAX_DOCX_IMAGES = 60;
+const MAX_DOCX_VERIFY = 20;
 
 const digitTokens = (s: string) => new Set(s.match(/\d+(?:\.\d+)?/g) ?? []);
 
@@ -476,6 +480,44 @@ async function transcribeDocx(
   }
   if (failed > 0) {
     flags.push({ type: "image_failed", detail: `${failed} 张内嵌图表转写失败，内容可能缺失，请对照原文件补充` });
+  }
+
+  // An image has no text layer, so a digit vision invented here is invisible to every later
+  // check (the bible audit only compares bible against this transcript). Bounded: each check is
+  // another vision call, and the pool is the slowest phase of the import.
+  const numeric = clipped
+    .map((img, i) => ({ img, text: transcriptions[i] }))
+    .filter((x): x is { img: (typeof clipped)[number]; text: string } => Boolean(x.text) && /\d/.test(x.text!));
+  const toVerify = numeric.slice(0, MAX_DOCX_VERIFY);
+  if (numeric.length > toVerify.length) {
+    flags.push({
+      type: "audit_source",
+      detail: `${numeric.length} 张内嵌图表含数字，仅复核了前 ${toVerify.length} 张；其余图表中的数字未与原图比对，请自行核对`,
+    });
+  }
+  if (toVerify.length > 0) {
+    let verified = 0;
+    const results = await runPool(toVerify, 4, async ({ img, text }) => {
+      const r = await verifyImageNumbers(img.bytes, text, logger);
+      verified++;
+      await onProgress?.({
+        current: verified,
+        total: toVerify.length,
+        phase: "transcribing document",
+        detail: `复核图表数字 ${verified}/${toVerify.length}`,
+      });
+      return r;
+    });
+    for (const d of results.flatMap((r) => r.diffs).slice(0, 20)) {
+      flags.push({ type: "audit_source", detail: `内嵌图表数字复核不一致：${d}` });
+    }
+    const unchecked = results.filter((r) => !r.ok).length;
+    if (unchecked > 0) {
+      flags.push({
+        type: "audit_source",
+        detail: `${unchecked} 张内嵌图表的数字复核调用失败，其中的数字未与原图比对，请自行核对`,
+      });
+    }
   }
   // Cropped spreadsheet previews lose their right side at the source — no extractor can
   // recover data that isn't in the file.
