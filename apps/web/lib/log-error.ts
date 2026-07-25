@@ -21,7 +21,8 @@ export async function logServerError(input: LogInput): Promise<void> {
     await db.insert(errorEvents).values({
       message: input.message.slice(0, 4000),
       stack: input.stack?.slice(0, 8000) ?? null,
-      route: input.route ?? null,
+      // Sink-side strip: the OIDC callback carries a live code + state in its query.
+      route: input.route?.split("?")[0]?.slice(0, 512) ?? null,
       method: input.method ?? null,
       kind: input.kind ?? null,
       digest: input.digest ?? null,

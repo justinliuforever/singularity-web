@@ -1,6 +1,6 @@
-import { handleSignIn } from "@logto/next/server-actions";
+import { getLogtoContext, handleSignIn } from "@logto/next/server-actions";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import type { NextRequest } from "next/server";
 
 import { eq } from "drizzle-orm";
@@ -13,7 +13,20 @@ import { BETA_CODE_COOKIE, redeemAccessCode } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
 
 export async function GET(request: NextRequest) {
-  await handleSignIn(logtoConfig, request.nextUrl.searchParams);
+  // A route handler throw is a bare 500 with no body — error.tsx cannot cover it. Logto
+  // clears the sign-in session on success, so a reload or browser Back replays a spent
+  // code and fails deterministically; without this it is a white screen the user can only
+  // escape by retyping the domain.
+  try {
+    await handleSignIn(logtoConfig, request.nextUrl.searchParams);
+  } catch (err) {
+    unstable_rethrow(err);
+    const { isAuthenticated } = await getLogtoContext(logtoConfig).catch(() => ({
+      isAuthenticated: false,
+    }));
+    console.error("sign-in callback failed", err);
+    redirect(isAuthenticated ? "/" : "/sign-in-failed?reason=expired");
+  }
   // One row per completed sign-in — feeds the admin user-detail view. Never
   // block the login redirect on bookkeeping.
   let user = null;
