@@ -100,7 +100,8 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
   const [extraIds, setExtraIds] = useState<Set<string>>(() => new Set());
   const [direction, setDirection] = useState("");
   const [sopId, setSopId] = useState<string | null>(null);
-  const [sourceMode, setSourceMode] = useState<SourceMode>("batch");
+  // With nothing bound, batch mode's primary button is dead on arrival — open on links instead.
+  const [sourceMode, setSourceMode] = useState<SourceMode>(competitors.length === 0 ? "links" : "batch");
   const [linksText, setLinksText] = useState("");
   const [error, setError] = useState<string | null>(null);
 

@@ -142,10 +142,17 @@ export function PendingIdeaTree({ groups, accountSlug, projectSlug }: Props) {
                           projectSlug={projectSlug}
                         />
                       </header>
-                      <details className="group/detail mt-2">
-                        <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                      {/* 采用 is one click away in the header, so a hidden risk note has to
+                          announce itself from the collapsed summary. */}
+                      <details className="group/detail mt-2" open={Boolean(idea.riskFactors?.trim())}>
+                        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                           <span className="group-open/detail:hidden">▸ 展开明细</span>
                           <span className="hidden group-open/detail:inline">▾ 收起明细</span>
+                          {idea.riskFactors?.trim() ? (
+                            <Badge variant="warning" className="text-[10px]">
+                              有风险提示
+                            </Badge>
+                          ) : null}
                         </summary>
                         <IdeaDetailFields idea={idea} />
                       </details>

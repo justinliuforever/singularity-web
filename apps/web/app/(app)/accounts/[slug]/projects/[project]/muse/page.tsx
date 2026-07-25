@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
@@ -83,7 +83,9 @@ export default async function MuseChannelPage({ params }: Props) {
       .from(museIdeas)
       .leftJoin(museMonitorVideos, eq(museMonitorVideos.id, museIdeas.sourceVideoId))
       .where(eq(museIdeas.projectId, project.id))
-      .orderBy(desc(museIdeas.generatedAt)),
+      // One video's ideas are written in a single insert, so they share generated_at exactly —
+      // without the tiebreaker the tree's numbered branches render in arbitrary order.
+      .orderBy(desc(museIdeas.generatedAt), asc(museIdeas.ideaNumber)),
     getActiveAgentRun(channel.id, user.id, "muse", undefined, project.id),
     // The server lock is account-wide, so a sibling project's run still blocks starting here.
     getActiveAgentRun(channel.id, user.id, "muse"),
@@ -116,7 +118,9 @@ export default async function MuseChannelPage({ params }: Props) {
   const pendingGroups: PendingGroup[] = [];
   const groupByKey = new Map<string, PendingGroup>();
   for (const idea of pendingIdeas) {
-    const key = idea.sourceVideoId ?? "unknown";
+    // source_video_id is ON DELETE SET NULL, so a shared "unknown" key would merge ideas from
+    // unrelated videos and unrelated runs into one node. Orphans get a node each.
+    const key = idea.sourceVideoId ?? `orphan:${idea.id}`;
     let group = groupByKey.get(key);
     if (!group) {
       group = {
@@ -124,14 +128,16 @@ export default async function MuseChannelPage({ params }: Props) {
         sourceTitle: idea.sourceTitle,
         sourceUrl: idea.sourceUrl,
         sourceChannelName: idea.sourceChannelName,
-        isLatestRun: false,
+        isLatestRun: true,
         ideas: [],
       };
       groupByKey.set(key, group);
       pendingGroups.push(group);
     }
     group.ideas.push(idea);
-    if (idea.runId === newestRunId) group.isLatestRun = true;
+    // Every idea in the group must be from the newest run — one match would badge a group
+    // that mostly predates this patrol.
+    if (idea.runId !== newestRunId) group.isLatestRun = false;
   }
 
   let liveStats: LiveStats | null = null;
