@@ -408,9 +408,9 @@ export async function writeScript(
     source,
     language: args.language,
     mode: "script",
-    // Pro-first catches factual errors a script asserts, but a reasoning model spends the output
-    // budget on reasoning and truncates long drafts — which discards the whole pass. Flash for those.
-    tier: result.path === "long" ? "flash" : "fallback",
+    // Keyed on the target, not on which writer ran: a long-form request that fell back to the
+    // short writer still produces a long draft, and Pro truncates those (discarding the pass).
+    tier: isLongForm(args.targetWordCount, args.language) ? "flash" : "fallback",
     logger: args.logger,
   });
   if (grounded && grounded !== result.scriptText) {

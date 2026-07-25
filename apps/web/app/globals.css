@@ -66,8 +66,9 @@
      the beak/foot shade GooseMark tones reach for. Foregrounds are ink, not ivory:
      ivory on these mid-tones only reaches 2.8:1. */
   --clerk: #6a9bcc;
-  /* A shade under the VI's #4f7ba8 so 10px SOP section numbers clear AA on ivory. */
-  --clerk-deep: #4a739e;
+  /* Two shades under the VI's #4f7ba8: 10px SOP section numbers must clear AA not just on
+     the bare card (4.70 at #4a739e) but through the active row's wash, where it fell to 4.34. */
+  --clerk-deep: #456a91;
   --clerk-foreground: #141413;
   --muse: #788c5d;
   --muse-deep: #5c6e46;
@@ -115,7 +116,7 @@
   --sidebar-accent: #e8e6dc;
   --sidebar-accent-foreground: #141413;
   --sidebar-border: #14141318;
-  --sidebar-ring: #d97757;
+  --sidebar-ring: #b8563a;
 }
 
 .dark {
@@ -433,9 +434,8 @@
 .sop-toc-link:hover {
   @apply border-clerk/40 bg-muted/40 text-foreground lg:border-transparent;
 }
-/* No tint: the 10px .sop-toc-num inside clears AA on the bare card but only reaches 4.3:1
-   over a bg-clerk/10 wash — and the active row is the one the reader is actually on. The
-   border and font-medium carry the state. */
+/* Neutral wash instead of bg-clerk/10: the 10px .sop-toc-num inside has to clear AA through
+   whatever tint sits under it, and the active row is the one the reader is on. 4.94:1. */
 .sop-toc-link[data-active] {
   @apply border-clerk/40 font-medium text-foreground lg:border-transparent lg:bg-muted/50;
 }

@@ -113,14 +113,15 @@ export async function verifyPdfNumbers(
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return { diffs: [], checked };
-    return {
-      diffs: out
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0 && l !== "OK"),
-      checked,
-    };
+    // An empty reply is not a clean pass — that is the exact confusion this return shape exists
+    // to remove. A diff line is the "转写值 -> 原文实际值" the prompt mandates; anything else
+    // (OK, 全部一致, a stray period) means the model found nothing.
+    if (!out) return { diffs: [], checked: "failed" };
+    const diffs = out
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.includes("->"));
+    return { diffs, checked: r.finishReason === "length" ? "partial" : checked };
   } catch (err) {
     logger?.warn?.(`verifyPdfNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
     return { diffs: [], checked: "failed" };
@@ -183,14 +184,13 @@ export async function verifyImageNumbers(
       ],
     });
     const out = r.text.trim();
-    if (!out || out === "OK") return { diffs: [], ok: true };
-    return {
-      diffs: out
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0 && l !== "OK"),
-      ok: true,
-    };
+    if (!out) return { diffs: [], ok: false };
+    // Only "转写值 -> 图片实际值" lines are diffs; a bare OK or any other phrasing is clean.
+    const diffs = out
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.includes("->"));
+    return { diffs, ok: true };
   } catch (err) {
     logger?.warn?.(`verifyImageNumbers failed: ${(err as Error).message?.slice(0, 120)}`);
     return { diffs: [], ok: false };
@@ -500,10 +500,12 @@ async function transcribeDocx(
     const results = await runPool(toVerify, 4, async ({ img, text }) => {
       const r = await verifyImageNumbers(img.bytes, text, logger);
       verified++;
+      // Own phase, not "transcribing document": a second pool reporting the same phase with
+      // its own total made the bar run to 100% and snap back.
       await onProgress?.({
         current: verified,
         total: toVerify.length,
-        phase: "transcribing document",
+        phase: "verifying chart numbers",
         detail: `复核图表数字 ${verified}/${toVerify.length}`,
       });
       return r;

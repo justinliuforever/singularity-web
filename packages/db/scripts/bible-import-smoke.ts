@@ -87,7 +87,7 @@ check("length within ceiling", bible.content.length <= 9000, `${bible.content.le
 const digits = (s: string) => new Set(s.match(/\d+(?:\.\d+)?/g) ?? []);
 const tDigits = digits(stage1.transcript);
 const violations = [...digits(bible.content)].filter((n) => !tDigits.has(n));
-check("digit audit clean (or flagged)", violations.length === 0 || bible.flags.some((f) => f.type === "audit"), violations.join(","));
+check("digit audit clean (or flagged)", violations.length === 0 || bible.flags.some((f) => f.type === "audit" || f.type === "audit_source"), violations.join(","));
 check("no drift", bible.driftWarning === null, bible.driftWarning?.reason);
 
 console.log(`\n== section selection ==`);

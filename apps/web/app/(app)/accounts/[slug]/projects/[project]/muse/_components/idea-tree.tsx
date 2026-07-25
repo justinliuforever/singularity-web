@@ -143,8 +143,9 @@ export function PendingIdeaTree({ groups, accountSlug, projectSlug }: Props) {
                         />
                       </header>
                       {/* 采用 is one click away in the header, so a hidden risk note has to
-                          announce itself from the collapsed summary. */}
-                      <details className="group/detail mt-2" open={Boolean(idea.riskFactors?.trim())}>
+                          announce itself from the collapsed summary. The badge does that;
+                          opening by default would not, since 94% of ideas carry one. */}
+                      <details className="group/detail mt-2">
                         <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                           <span className="group-open/detail:hidden">▸ 展开明细</span>
                           <span className="hidden group-open/detail:inline">▾ 收起明细</span>

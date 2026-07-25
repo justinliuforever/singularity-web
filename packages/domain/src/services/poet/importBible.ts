@@ -85,18 +85,21 @@ export async function generateBibleFromDocument(
       if (/^(##|TOPIC:|HOST:)/.test(line.trim())) return true;
       return !violations.some((v) => line.includes(v));
     });
-    if (kept.length < lines.length) {
+    const removedCount = lines.length - kept.length;
+    if (removedCount > 0) {
       content = kept.join("\n");
       flags.push({
         type: "audit",
-        detail: `数字审计：${violations.length} 个数字无法在转写中找到，包含它们的 ${lines.length - kept.length} 行已移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
+        detail: `数字审计：${violations.length} 个数字无法在转写中找到，包含它们的 ${removedCount} 行已移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
       });
-    } else {
-      // Anchor/TOPIC/HOST lines are never dropped, so a violation confined to them removes
-      // nothing — without this branch the bible would activate as if the audit had passed.
+    }
+    // Not an else: anchor/TOPIC/HOST lines are never dropped, so the same number can be both
+    // removed from a body line and still present in a heading. Decide from what survived.
+    const surviving = [...digitTokens(content)].filter((n) => !transcriptDigits.has(n));
+    if (surviving.length > 0) {
       flags.push({
         type: "audit_source",
-        detail: `数字审计：${violations.length} 个数字无法在转写中找到，但它们位于标题或章节行，未自动移除（${violations.slice(0, 8).join(", ")}${violations.length > 8 ? "…" : ""}）`,
+        detail: `数字审计：${surviving.length} 个数字无法在转写中找到，但它们位于标题或章节行，仍留在圣经里（${surviving.slice(0, 8).join(", ")}${surviving.length > 8 ? "…" : ""}）`,
       });
     }
   }

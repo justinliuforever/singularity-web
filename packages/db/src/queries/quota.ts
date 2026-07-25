@@ -22,6 +22,9 @@ export function planLimits(plan: string) {
 
 export const IMAGE_POST_MINUTES = 5;
 export const GENERATION_MINUTES = { bible: 5, bibleImport: 10, topic: 3, singleVideo: 2 } as const;
+// Re-ideating a video whose transcript is already cached: no fetch, no ASR, two LLM calls.
+// Priced like a topic analysis, which is the same shape of work.
+export const IDEATION_MINUTES = 3;
 
 export function videoMinutes(durationSec?: number | null): number {
   if (!durationSec || durationSec <= 0) return IMAGE_POST_MINUTES;

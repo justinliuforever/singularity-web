@@ -4,16 +4,16 @@
 // instance, which is how the three agent geese get their own colors.
 type Tone = "brand" | "clerk" | "muse" | "poet";
 
-// The eye and trim must be overridden too: --goose-eye is ivory, tuned for the coral brand
-// goose, and in dark mode --*-deep is the light-mode fill — one ramp step from the body. Left
-// alone, the crew geese lose eye, beak and feet (1.2–2.5:1) and render as plain blobs. Ink
-// reads on all six body values (5.0–8.5:1).
+// --goose-eye defaults to ivory, tuned for the coral brand goose; on the crew bodies it is
+// 2.0–2.5:1 and the eye is r=3.1 in a 120 viewBox, so it disappeared. Ink reads on all six
+// body values (5.0–8.5:1). Trim stays on the mode-aware -deep token: beak and feet extend
+// past the body outline onto the page, where ink would be invisible on the dark ground.
 const INK = "#141413";
 const TONE: Record<Tone, React.CSSProperties> = {
   brand: {},
-  clerk: { "--goose-body": "var(--clerk)", "--goose-trim": INK, "--goose-eye": INK },
-  muse: { "--goose-body": "var(--muse)", "--goose-trim": INK, "--goose-eye": INK },
-  poet: { "--goose-body": "var(--poet)", "--goose-trim": INK, "--goose-eye": INK },
+  clerk: { "--goose-body": "var(--clerk)", "--goose-trim": "var(--clerk-deep)", "--goose-eye": INK },
+  muse: { "--goose-body": "var(--muse)", "--goose-trim": "var(--muse-deep)", "--goose-eye": INK },
+  poet: { "--goose-body": "var(--poet)", "--goose-trim": "var(--poet-deep)", "--goose-eye": INK },
 } as Record<Tone, React.CSSProperties>;
 
 export function GooseMark({

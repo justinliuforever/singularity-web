@@ -1588,13 +1588,15 @@ export const appRouter = router({
         // Links mode patrols exactly the pasted URLs — competitor bindings don't apply.
         const linksMode = input.sourceMode === "links";
         let selectedIds: string[] | undefined;
-        // Survives the block below so the quota estimate can still size a bound-competitor run.
-        let boundCount = 0;
+        // Platforms survive the block below: competitors.bind does not check platform, so a
+        // douyin account can hold YouTube competitors, and a YouTube item costs ~2.7x a douyin one.
+        let boundPlatforms: string[] = [];
+        let extraPlatforms: string[] = [];
         let extraIds: string[] | undefined;
         if (!linksMode) {
           // Same source as the monitor job: live project_competitors.
           const bound = await db
-            .select({ id: competitorAccounts.id })
+            .select({ id: competitorAccounts.id, platform: competitorAccounts.platform })
             .from(projectCompetitors)
             .innerJoin(
               competitorAccounts,
@@ -1612,15 +1614,17 @@ export const appRouter = router({
               message: "请先为该频道配置至少一个对标账号",
             });
           }
-          boundCount = bound.length;
           const boundIds = new Set(bound.map((b) => b.id));
           selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
+          boundPlatforms = (
+            selectedIds ? bound.filter((b) => selectedIds!.includes(b.id)) : bound
+          ).map((b) => b.platform);
 
           // Temp competitors: must be the user's, but need NOT be bound to this project.
           const extraReq = input.extraCompetitorAccountIds?.filter((id) => !boundIds.has(id));
           if (extraReq && extraReq.length > 0) {
             const owned = await db
-              .select({ id: competitorAccounts.id })
+              .select({ id: competitorAccounts.id, platform: competitorAccounts.platform })
               .from(competitorAccounts)
               .where(
                 and(
@@ -1636,6 +1640,7 @@ export const appRouter = router({
               });
             }
             extraIds = owned.map((o) => o.id);
+            extraPlatforms = owned.map((o) => o.platform);
           }
 
           // selectedIds === [] is a valid extras-only run; reject only when nothing at all would run.
@@ -1680,15 +1685,19 @@ export const appRouter = router({
         const contentFilter = input.contentFilter ?? input.xhsContentType ?? "all";
         const direction = input.direction?.trim() || undefined;
 
-        const competitorCount = (selectedIds?.length ?? boundCount) + (extraIds?.length ?? 0);
-        // Pasted links can mix platforms, so size each one by the platform it points at
-        // rather than by the account's — a YouTube link costs twice an XHS one.
+        // Size every item by ITS OWN platform, not the account's. Pasted links can mix
+        // platforms and bound competitors need not share the account's; a YouTube item is
+        // ~2.7x a douyin one. Links are deduped first because the worker resolves them once.
+        const perCompetitor = input.maxVideosPerCompetitor ?? 10;
         const estimateMinutes = linksMode
-          ? (input.videoUrls ?? []).reduce(
+          ? [...new Set((input.videoUrls ?? []).map((u) => u.trim()))].reduce(
               (sum, url) => sum + estimateRunMinutes(detectVideoLinkPlatform(url) ?? channel.platform, 1),
               0,
             )
-          : estimateRunMinutes(channel.platform, competitorCount * (input.maxVideosPerCompetitor ?? 10));
+          : [...boundPlatforms, ...extraPlatforms].reduce(
+              (sum, platform) => sum + estimateRunMinutes(platform, perCompetitor),
+              0,
+            );
         return stageAndTriggerRun({
           userId: ctx.user.id,
           owner: { channelId: channel.id },

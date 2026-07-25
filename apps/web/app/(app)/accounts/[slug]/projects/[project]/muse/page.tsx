@@ -128,16 +128,16 @@ export default async function MuseChannelPage({ params }: Props) {
         sourceTitle: idea.sourceTitle,
         sourceUrl: idea.sourceUrl,
         sourceChannelName: idea.sourceChannelName,
-        isLatestRun: true,
+        isLatestRun: false,
         ideas: [],
       };
       groupByKey.set(key, group);
       pendingGroups.push(group);
     }
     group.ideas.push(idea);
-    // Every idea in the group must be from the newest run — one match would badge a group
-    // that mostly predates this patrol.
-    if (idea.runId !== newestRunId) group.isLatestRun = false;
+    // Any-match, not all-match: re-patrolling a link reuses its cached transcript and adds
+    // ideas to a group that already holds older ones, and that group did come out of this run.
+    if (idea.runId === newestRunId) group.isLatestRun = true;
   }
 
   let liveStats: LiveStats | null = null;

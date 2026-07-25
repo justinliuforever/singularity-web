@@ -7,6 +7,7 @@ import {
   competitorAccounts,
   settleRunMinutes,
   videoMinutes,
+  IDEATION_MINUTES,
   flushProxyPool,
   loadProxyPool,
   museIdeas,
@@ -744,8 +745,12 @@ export const monitorCompetitors = task({
             transcript: finalTranscript,
             language: sourceLang,
           });
-          // User-specified links are always relevant; keep the classifier's topic label.
-          const relevantVerdict = linksMode ? true : cls.relevant;
+          // User-specified links skip the relevance filter — but only if there is something to
+          // ideate from. Marking a too-short transcript relevant just parks it as an orphan for
+          // the next batch patrol to pick up under a looser floor.
+          const relevantVerdict = linksMode
+            ? Boolean(finalTranscript && isRealTranscript(finalTranscript, contentType))
+            : cls.relevant;
 
           const [inserted] = await db
             .insert(museMonitorVideos)
@@ -982,12 +987,18 @@ export const monitorCompetitors = task({
       }
 
       // Settle parse quota from the videos this run actually stamped (duration-weighted).
+      // Cached rows are deliberately not restamped — re-charging the parse of content that was
+      // never re-fetched would double-bill. But links mode re-ideates them, and idea generation
+      // is two LLM calls per video, so it carries its own flat charge. Without this a repeated
+      // link run settles zero and the loop is free.
       if (payload.userId) {
         const processed = await db
           .select({ durationSec: museMonitorVideos.durationSec })
           .from(museMonitorVideos)
           .where(eq(museMonitorVideos.runId, payload.runId));
-        const minutes = processed.reduce((s, v) => s + videoMinutes(v.durationSec), 0);
+        const minutes =
+          processed.reduce((s, v) => s + videoMinutes(v.durationSec), 0) +
+          cachedRows.length * IDEATION_MINUTES;
         await settleRunMinutes(db, { runId: payload.runId, userId: payload.userId, minutes });
       }
 
