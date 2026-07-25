@@ -2,8 +2,7 @@ import { generateTextWithFallback } from "@goooose/integrations/clients/llm";
 import { parseLlmJson } from "@goooose/integrations/utils";
 import { buildFactCheckPrompt, type FactCheckItem } from "@goooose/prompts/poet";
 
-// Mirror of @goooose/db CheckedFact (this repo keeps equivalent types per package
-// rather than cross-importing; see ScriptReference vs CustomTopicReference).
+// Must stay in sync with @goooose/db CheckedFact (mirrored per package, never cross-imported).
 export type CheckedFact = {
   fact: string;
   src: string;
@@ -11,7 +10,6 @@ export type CheckedFact = {
   note?: string;
 };
 
-// Split "- <fact> [src: <title>]" lines into {fact, src}.
 function parseVerbatim(verbatimFacts: string): { fact: string; src: string }[] {
   const out: { fact: string; src: string }[] = [];
   for (const raw of (verbatimFacts ?? "").split("\n")) {
@@ -26,10 +24,8 @@ function parseVerbatim(verbatimFacts: string): { fact: string; src: string }[] {
 }
 
 
-// Per-fact verification at topic-analysis time. Catches "sourced but wrong" facts that
-// the grounding pass keeps (it trusts cited sources). Marks only — never edits the fact.
-// Any failure path returns everything "verified": this must never block analysis or
-// false-flag a correct fact.
+// Marks only, never edits. Every failure path returns "verified" — this must neither block
+// analysis nor false-flag a correct fact.
 export async function factCheckVerbatim(args: {
   verbatimFacts: string;
   referenceTitles: string[];

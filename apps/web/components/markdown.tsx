@@ -1,7 +1,5 @@
-// Shared markdown renderer. Async server component + dynamic import keeps the markdown
-// bundle server-side and sidesteps react-markdown v10's pure-ESM interop. No rehype-raw —
-// the content is LLM-generated, so raw HTML stays escaped. Styling is the hand-written
-// .prose-clerk class (globals.css), not @tailwindcss/typography.
+// Dynamic import keeps the markdown bundle server-side and sidesteps react-markdown v10's
+// pure-ESM interop. No rehype-raw: the text is LLM-generated, so raw HTML must stay escaped.
 export async function Markdown({ text, className }: { text: string; className?: string }) {
   const { default: ReactMarkdown } = await import("react-markdown");
   const { default: remarkGfm } = await import("remark-gfm");

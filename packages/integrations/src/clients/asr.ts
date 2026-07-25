@@ -13,16 +13,12 @@ import {
   getAutoCaptionsYtdlp,
 } from "./ytdlp";
 
-// Keep this list short — every language is a separate YouTube subtitle endpoint
-// request and they rate-limit aggressively (429) past ~3 langs per video.
+// Each extra language is a separate YouTube subtitle request; they 429 past ~3 langs per video.
 const CAPTION_PREFER_LANGS = ["en", "zh-Hans"];
 
-// Minimum char count from auto-captions before we trust them — anything below
-// is treated as "no captions, fall through to audio ASR".
 const CAPTION_MIN_CHARS = 80;
 
-// Cap audio ASR fallback: above this duration the audio file gets unwieldy and
-// Deepgram billing becomes unhappy.
+// Above this the audio file gets unwieldy and Deepgram billing unreasonable.
 const MAX_AUDIO_DURATION_SEC = 3600;
 
 const DOWNLOAD_TIMEOUT_MS = 900_000;
@@ -57,7 +53,6 @@ async function downloadOnce(url: string, ext: string): Promise<string> {
     try {
       unlinkSync(dest);
     } catch {
-      /* partial file may not exist */
     }
     throw err;
   } finally {
@@ -150,8 +145,7 @@ export type AsrResult = {
   words: Array<{ w: string; t: number }>;
 };
 
-// Filter out words falling inside ad / promo windows so the LLM doesn't score
-// sponsor read-outs as actual content hooks/CTAs.
+// Drop ad/promo windows so the LLM doesn't score sponsor read-outs as hooks/CTAs.
 const AD_CATEGORIES = new Set(["sponsor", "selfpromo"]);
 
 export function stripAdSegments(
@@ -165,8 +159,7 @@ export function stripAdSegments(
   );
 }
 
-// Inject [mm:ss] markers every ~6 seconds so the LLM can cite specific moments
-// without ballooning prompt length (token-balanced for 5-15 chars/sec speech).
+// [mm:ss] markers let the LLM cite moments; ~6s balances that against prompt length.
 const TIMESTAMP_INTERVAL_SEC = 6;
 
 export function renderTranscriptWithTimestamps(
@@ -197,14 +190,14 @@ export function renderTranscriptWithTimestamps(
 
 export type AsrPhase = "selecting" | "downloading" | "transcribing";
 
-// Rough CJK detector for qwenFirst routing: ≥4 Han chars in a video title means the
-// spoken language is almost certainly Mandarin (Deepgram empties/garbles those).
+// ≥4 Han chars in a title means the speech is almost certainly Mandarin, which Deepgram
+// empties/garbles — routes to qwenFirst.
 export function likelyChineseText(s: string | null | undefined): boolean {
   return ((s ?? "").match(/[一-鿿]/g)?.length ?? 0) >= 4;
 }
 
-// Below this chars/sec rate Deepgram is almost certainly garbled (observed on
-// CN+EN code-switching audio). Real speech is 5-15 chars/sec for both langs.
+// Below this rate Deepgram is almost certainly garbled (seen on CN+EN code-switching audio);
+// real speech runs 5-15 chars/sec in both languages.
 const MIN_CHARS_PER_SEC = 1;
 
 export type StreamCandidate = {
@@ -220,18 +213,14 @@ export type TranscribeOpts = {
   logger?: { info: (msg: string) => void; warn: (msg: string) => void };
   durationSec?: number;
   tag?: string;
-  // Try Qwen before Deepgram (e.g. CJK-titled videos — Deepgram returns empty or
-  // garbled Mandarin). Deepgram still runs as fallback if Qwen yields nothing.
+  // Deepgram returns empty/garbled Mandarin; it still runs as fallback when Qwen yields nothing.
   qwenFirst?: boolean;
-  // Skip the h265-last/size sort in transcribeFromStreams — the caller's order is
-  // intentional (Douyin h265 carries audio, unlike XHS).
+  // Skip the h265-last/size sort: the caller's order is intentional (Douyin h265 carries audio).
   preserveOrder?: boolean;
 };
 
-// Extract a compact mono 16kHz audio clip so Qwen's base64 request body stays well under
-// its ~10MB limit. XHS gives full h265 video (7-12MB) and base64 inflates ~37%, so
-// shipping raw video 413s; a few-minute audio clip is ~1MB. Returns null if ffmpeg
-// is unavailable or fails — caller falls back to the raw file.
+// Qwen's body caps ~10MB and base64 inflates ~37%; XHS ships full h265 video (7-12MB), which
+// 413s. A mono 16kHz clip is ~1MB. Null when ffmpeg is unavailable — caller uses the raw file.
 async function extractAudioForQwen(
   srcPath: string,
   logger?: { warn: (msg: string) => void },
@@ -240,10 +229,8 @@ async function extractAudioForQwen(
     tmpdir(),
     `goooose-asr-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.m4a`,
   );
-  // The Trigger ffmpeg build extension installs to /usr/bin/ffmpeg and exposes it via
-  // FFMPEG_PATH — spawned children don't reliably inherit a PATH that includes it.
-  // Use the native AAC encoder (always compiled into ffmpeg core); the Debian image's
-  // ffmpeg has no libmp3lame, so "-f mp3" exits 1.
+  // FFMPEG_PATH: the Trigger build extension installs to /usr/bin/ffmpeg and spawned children
+  // don't reliably inherit that PATH. AAC, not mp3 — the Debian image's ffmpeg has no libmp3lame.
   const bin = process.env.FFMPEG_PATH || "ffmpeg";
   return await new Promise((resolve) => {
     let stderr = "";
@@ -264,13 +251,11 @@ async function extractAudioForQwen(
       try {
         if (code === 0 && statSync(out).size > 0) return resolve(out);
       } catch {
-        /* no output file */
       }
       if (code !== 0) logger?.warn(`ffmpeg exit ${code} (bin=${bin}): ${stderr.trim().slice(-240)}`);
       try {
         unlinkSync(out);
       } catch {
-        /* already gone */
       }
       resolve(null);
     });
@@ -285,8 +270,6 @@ const QWEN_BODY_SAFE_BYTES = 7_300_000;
 const QWEN_CHUNK_SECONDS = 170;
 const QWEN_SINGLE_SHOT_BYTES = 1_100_000;
 
-// Split the extracted audio into Qwen-sized segments (stream copy, fast). Returns
-// the ordered chunk paths, or null if ffmpeg is unavailable/fails.
 async function segmentAudioForQwen(
   srcPath: string,
   logger?: { warn: (msg: string) => void },
@@ -326,7 +309,6 @@ async function segmentAudioForQwen(
           .sort()
           .map((f) => join(tmpdir(), f));
       } catch {
-        /* readdir failed */
       }
       if (code === 0 && files.length > 0) return resolve(files);
       logger?.warn(`ffmpeg segment exit ${code} (bin=${bin}): ${stderr.trim().slice(-240)}`);
@@ -334,7 +316,6 @@ async function segmentAudioForQwen(
         try {
           unlinkSync(f);
         } catch {
-          /* already gone */
         }
       }
       resolve(null);
@@ -342,10 +323,8 @@ async function segmentAudioForQwen(
   });
 }
 
-// Qwen3-ASR-Flash (Alibaba Model Studio, Singapore) — Chinese-native ASR, far better
-// Mandarin than Deepgram, ~1-5s. OpenAI-compatible chat endpoint, base64 audio input.
-// We extract audio first (XHS ships full video); pass language to force it (XHS ->
-// "zh"), omit for auto-detect (enable_lid).
+// Qwen3-ASR-Flash (Alibaba Model Studio, Singapore): OpenAI-compatible chat endpoint, base64
+// audio. Pass language to force it (XHS -> "zh"); omit for auto-detect via enable_lid.
 async function qwenRequest(
   sendPath: string,
   mediaType: string,
@@ -353,7 +332,7 @@ async function qwenRequest(
 ): Promise<string | null> {
   const key = process.env.DASHSCOPE_API_KEY;
   const base = process.env.DASHSCOPE_ASR_BASE_URL;
-  if (!key || !base) return null; // not configured
+  if (!key || !base) return null;
   const b64 = readFileSync(sendPath).toString("base64");
   const asrOptions: Record<string, unknown> = { enable_lid: true, enable_itn: false };
   if (language) asrOptions.language = language;
@@ -374,8 +353,7 @@ async function qwenRequest(
   return (j.choices?.[0]?.message?.content ?? "").trim() || null;
 }
 
-// Exported for the asr-chunk smoke test; production callers go through
-// transcribeYoutubeVideo / transcribeFromStreams.
+// Exported for the asr-chunk smoke test only.
 export async function transcribeWithQwen(
   tempPath: string,
   mime: string,
@@ -394,8 +372,8 @@ export async function transcribeWithQwen(
   const cleanup: string[] = audioPath ? [audioPath] : [];
   try {
     const sendBytes = statSync(sendPath).size;
-    // Long audio: qwen3-asr-flash rejects ~3min+ clips outright — segment and stitch.
-    // Only possible on the extracted (known-bitrate) audio; raw fallback keeps the cap.
+    // Chunking is gated on audioPath because only the extracted audio has a known bitrate;
+    // the raw-file fallback keeps the byte cap instead.
     if (audioPath && sendBytes > QWEN_SINGLE_SHOT_BYTES) {
       const chunks = await segmentAudioForQwen(sendPath, logger);
       if (!chunks) {
@@ -438,7 +416,6 @@ export async function transcribeWithQwen(
       try {
         unlinkSync(f);
       } catch {
-        /* already gone */
       }
     }
   }
@@ -454,10 +431,8 @@ async function transcribeAtPath(
   const { onPhase, logger, durationSec, tag = "ASR" } = opts;
 
   if (preferQwen) {
-    // XHS / Chinese: Qwen3-ASR-Flash only (force zh). transcribeWithQwen extracts a
-    // compact audio clip first, so video size no longer matters. Deepgram returns
-    // gibberish on Chinese, so there's no audio fallback — on failure return null and
-    // let the caller fall back to title-only text.
+    // XHS / Chinese: Qwen only, forced zh — Deepgram returns gibberish on Chinese, so there is
+    // no audio fallback; null makes the caller fall back to title-only text.
     onPhase?.("transcribing", { bytes: sizeBytes, provider: "qwen" });
     try {
       const qwen = await transcribeWithQwen(tempPath, mime, "zh", logger);
@@ -472,9 +447,8 @@ async function transcribeAtPath(
     return null;
   }
 
-  // YouTube: Deepgram primary (fast, word timestamps); chunked Qwen as fallback for
-  // Chinese audio Deepgram empties/garbles. qwenFirst flips the order (CJK-titled
-  // videos) — whichever runs second is still the safety net.
+  // YouTube: Deepgram primary (it alone gives word timestamps), Qwen as fallback for Chinese
+  // audio it empties/garbles; qwenFirst flips the order — the second one is still the safety net.
   const attemptDeepgram = async (): Promise<AsrResult | null> => {
     onPhase?.("transcribing", { bytes: sizeBytes, provider: "deepgram" });
     try {
@@ -522,10 +496,9 @@ async function transcribeAtPath(
   return null;
 }
 
-// XHS path: pre-resolved CDN URLs, no proxy needed (rednotecdn unrestricted). XHS
-// serves its h265 variants as VIDEO-ONLY — the audio track lives in the h264 stream —
-// so try audio-bearing codecs first, and fall through to the next stream when one
-// yields no transcript (a video-only variant → ffmpeg finds no audio → null).
+// Pre-resolved CDN URLs, no proxy (rednotecdn unrestricted). XHS serves its h265 variants
+// VIDEO-ONLY — the audio track lives in the h264 stream — so audio-bearing codecs go first and
+// a stream that yields no transcript falls through to the next.
 export async function transcribeFromStreams(
   streams: StreamCandidate[],
   opts: TranscribeOpts = {},
@@ -581,7 +554,6 @@ export async function transcribeFromStreams(
         try {
           unlinkSync(tempPath);
         } catch {
-          /* already gone */
         }
       }
     }
@@ -598,7 +570,7 @@ async function transcribeYoutubeOnce(
   const { logger, tag = `ASR ${videoId}`, onPhase } = opts;
   await ensureYtdlpBinary();
 
-  // Caption-first: ~50KB vs 5-10MB audio download. Skip on caption miss or short text.
+  // Caption-first: ~50KB vs 5-10MB audio download.
   let captionBotCheck: Error | null = null;
   try {
     onPhase?.("selecting");
@@ -620,8 +592,7 @@ async function transcribeYoutubeOnce(
           provider: "youtube_auto",
           words: captions.words,
         },
-        // Approx json3 file size on proxy bandwidth — wealthproxies bills on
-        // bytes-over-wire, not transcript text length.
+        // Approx json3 file size: the proxy bills bytes-over-wire, not transcript length.
         bytes: 50_000,
       };
     }
@@ -672,13 +643,11 @@ async function transcribeYoutubeOnce(
     try {
       unlinkSync(outPath);
     } catch {
-      /* already gone */
     }
   }
 }
 
-// High-level YouTube ASR: checks out session from pool, downloads via that session,
-// reports outcome back to pool. Each retry checks out a fresh session (rotates IP).
+// Each retry checks out a fresh pool session, which rotates the egress IP.
 export async function transcribeYoutubeVideo(
   videoId: string,
   pool: ProxyPool,

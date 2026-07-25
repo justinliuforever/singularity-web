@@ -1,6 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Mirrors the common page anatomy (header, cards, rows) so the swap to real content doesn't reflow.
 export default function Loading() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 sm:p-8">

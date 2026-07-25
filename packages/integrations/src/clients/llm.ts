@@ -26,10 +26,8 @@ export function llm(tier: LlmTier = "flash") {
   });
 }
 
-// DeepSeek Pro is a reasoning model — on heavy prompts it can burn the entire
-// output budget on internal reasoning tokens and return empty visible text
-// (finishReason="length", text.length=0). For tasks where the output is JSON or
-// short structured content, fall back to Flash transparently on that signature.
+// DeepSeek Pro is a reasoning model: on heavy prompts it can burn the whole output budget on
+// internal reasoning and return empty text (finishReason="length"), so Flash retries that case.
 export async function generateTextWithFallback(opts: {
   prompt: string;
   maxOutputTokens: number;

@@ -85,7 +85,6 @@ export default async function MuseChannelPage({ params }: Props) {
     getActiveAgentRun(channel.id, user.id, "muse", undefined, project.id),
     // The server lock is account-wide, so a sibling project's run still blocks starting here.
     getActiveAgentRun(channel.id, user.id, "muse"),
-    // Same source the monitor reads: this project's bound competitors.
     db
       .select({
         id: competitorAccounts.id,
@@ -102,7 +101,6 @@ export default async function MuseChannelPage({ params }: Props) {
 
   const activeCompetitorCount = boundCompetitors.length;
 
-  // State derived from approved + scripted + dismissedAt (Round 4 triage model).
   const pendingIdeas = ideas.filter((i) => !i.approved && !i.scripted && i.dismissedAt == null);
   const adoptedIdeas = ideas.filter((i) => (i.approved || i.scripted) && i.dismissedAt == null);
   const dismissedIdeas = ideas.filter((i) => i.dismissedAt != null);

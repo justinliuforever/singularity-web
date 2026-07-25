@@ -22,8 +22,8 @@ export type ThumbnailAnalysis = {
   titleSuggestions: string[];
 };
 
-// The SOP's cover playbook is built from `description` + `why_it_works`, so they must carry
-// the concrete material (verbatim overlay text, composition, props) rather than a gist.
+// The SOP's cover playbook is built from `description` + `why_it_works`, so they must carry the
+// concrete material (verbatim overlay text, composition, props) rather than a gist.
 const ZH_INSTRUCTION = `你是封面（首图/缩略图）视觉分析师。你没有被告知这条内容的标题，也不要试图推测标题——只描述画面。输出严格的 JSON：
 
 {
@@ -46,9 +46,8 @@ const EN_INSTRUCTION = `You are a cover (thumbnail / first image) visual analyst
 
 Return JSON only, no markdown fences.`;
 
-// AI SDK's URL-mode fetcher honors robots.txt; some CDNs (XHS rednotecdn) block
-// it. Downloading the bytes locally and passing Uint8Array bypasses that
-// fetcher entirely and works for any CDN our own fetch can reach.
+// The AI SDK's URL-mode fetcher honors robots.txt and some CDNs (XHS rednotecdn) block it;
+// passing bytes bypasses that fetcher entirely.
 async function fetchImageBytes(url: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
@@ -133,9 +132,8 @@ export async function analyzeImageStack(
         model: getAnthropic()("claude-sonnet-5"),
         middleware: usageMiddleware("vision", "anthropic", "claude-sonnet-5"),
       }),
-      // Chinese 1 char ≈ 1.5-2 tokens. Truncation drops the trailing fields while the
-      // description/whyItWorks guard below still passes, so the row silently loses its
-      // diagnosis — which is what gates the cover read into the SOP. Keep the headroom wide.
+      // Truncation drops the trailing fields while the description/whyItWorks guard below still
+      // passes, so the row silently loses the diagnosis that gates the cover read into the SOP.
       maxOutputTokens: 8000,
       maxRetries: 2,
       messages: [

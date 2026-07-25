@@ -125,7 +125,7 @@ export const generateScript = task({
           sourceChannel: ideaRow.sourceChannelName ?? "",
         };
         if (ideaRow.sourceTranscript) {
-          // Label by actual source platform (was hardcoded "youtube", mislabeling XHS/Douyin).
+          // Label by actual source platform; a hardcoded "youtube" mislabels XHS/Douyin.
           const srcUrl = ideaRow.sourceUrl ?? "";
           const srcType = /xiaohongshu|xhslink/.test(srcUrl)
             ? "xhs"
@@ -161,9 +161,8 @@ export const generateScript = task({
               content: v.transcript!,
             }));
         }
-        // Muse idea facts would otherwise reach the writer unchecked, and hedges
-        // like "(needs verification)" don't survive into spoken copy — same
-        // source-layer check custom topics get; conservative fallback never blocks.
+        // Muse idea facts would otherwise reach the writer unchecked, and hedges like
+        // "(needs verification)" don't survive into spoken copy.
         if (idea.factsAndData.trim()) {
           const checks = await factCheckVerbatim({
             verbatimFacts: idea.factsAndData,
@@ -226,7 +225,6 @@ export const generateScript = task({
           .filter((r): r is ScriptReference => r !== null);
       }
 
-      // Duration priority: explicit request > row-stored value > project default.
       const resolvedDuration =
         payload.durationSeconds ?? rowDurationSeconds ?? project?.targetDurationSeconds ?? null;
       const targetWordCount = computeTargetWordCount(resolvedDuration ?? undefined, language);
@@ -292,8 +290,7 @@ export const generateScript = task({
           onSectionDone: async ({ index, total: totalSections, marker, chars }) => {
             logger.info(`[long_form] ${marker} done (${chars} chars, ${index + 1}/${totalSections})`);
           },
-          // Humanize (zh short path only) now lives inside writeScript so the final
-          // length gate runs after it; here we just advance the progress bar.
+          // Humanize lives inside writeScript so the final length gate runs after it.
           onHumanizeStart: async () => {
             step = total - 1;
             await setProgress("humanizing script", "改写为真人口语（约 1-2 分钟）");

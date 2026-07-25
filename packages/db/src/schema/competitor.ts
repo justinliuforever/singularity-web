@@ -4,9 +4,8 @@ import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } 
 import { platformEnum } from "./channels";
 import { users } from "./users";
 
-// platform_key is the lowercase canonical dedup key (XHS user id / YouTube UC id).
-// needs_resolution flags rows whose key is provisional (YouTube /c/ /user/ handles)
-// until the offline resolver canonicalizes them.
+// platform_key: lowercase canonical dedup key (XHS user id / YouTube UC id); needs_resolution
+// marks a provisional key (YouTube /c/ /user/ handle) until the offline resolver canonicalizes it.
 export const competitorAccounts = pgTable(
   "competitor_accounts",
   {
@@ -26,7 +25,7 @@ export const competitorAccounts = pgTable(
   },
   (table) => ({
     userIdx: index("competitor_accounts_user_id_idx").on(table.userId),
-    // DB-level dedup; partial so a soft-deleted row doesn't block re-adding the same account.
+    // Partial so a soft-deleted row doesn't block re-adding the same account.
     userPlatformKeyUnique: uniqueIndex("competitor_accounts_user_platform_key_unique")
       .on(table.userId, table.platform, table.platformKey)
       .where(sql`${table.deletedAt} IS NULL`),

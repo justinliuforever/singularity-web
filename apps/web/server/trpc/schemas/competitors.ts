@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Loose URL (no platform-format refine) so a bad line is reported per-item as "invalid"
-// rather than rejecting the whole paste; the server resolves/validates each entry.
+// instead of rejecting the whole paste.
 export const importCompetitorsInput = z.object({
   projectId: z.string().uuid().optional(),
   competitors: z

@@ -2,8 +2,7 @@ import { classifyError } from "./classify";
 import type { ProxyPool } from "./pool";
 import type { ErrorKind, ProxySession } from "./types";
 
-// Retries only on error kinds where a fresh session/IP can actually help; everything
-// else propagates immediately.
+// Retries only on error kinds where a fresh session/IP can actually help.
 export async function withProxyRetry<T>(
   pool: ProxyPool,
   fn: (session: ProxySession) => Promise<T>,

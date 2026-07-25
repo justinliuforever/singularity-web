@@ -14,8 +14,7 @@ const usageSink = createUsageSink(db);
 const CACHE_TTL_MS = 30 * 60_000; // well under token lifetime, so cached tokens stay valid
 const tokenCache = new Map<string, { token: string; exp: number }>();
 
-// Fresh xsec_token at click time (tokens expire, so we don't bake them in). Approved-gated
-// and metered because it spends the shared TikHub key.
+// Fresh xsec_token at click time — tokens expire, so they can't be baked into stored URLs.
 export async function GET(request: Request): Promise<NextResponse> {
   const noteId = new URL(request.url).searchParams.get("note") ?? "";
   if (!NOTE_ID.test(noteId)) return new NextResponse("invalid note id", { status: 400 });

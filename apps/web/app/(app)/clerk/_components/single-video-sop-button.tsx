@@ -50,9 +50,8 @@ export function SingleVideoSopButton({
 
   const running = generate.isPending || active != null;
 
-  // The server lock is agent-wide, so any clerk run rejects this — mirror it here rather
-  // than rendering an enabled button the table repaints every 5s during an analysis. Checked
-  // after `running` so this row's own in-flight watcher is never unmounted mid-run.
+  // The server lock is agent-wide, so any clerk run rejects this. Must be checked after
+  // `running` so this row's own in-flight watcher is never unmounted mid-run.
   if (blockedReason && !running) {
     return (
       <Button size="sm" variant="ghost" disabled title={blockedReason}>

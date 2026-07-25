@@ -2,9 +2,7 @@ import { generateText } from "ai";
 
 import { generateTextWithFallback, llm } from "@goooose/integrations/clients/llm";
 
-// Anti-fabrication pass: a second LLM redacts specifics the source doesn't support,
-// cleans garbled ASR quotes, and fixes clear factual errors about well-known entities.
-// Returns the original draft on empty / truncation / error (never breaks the run).
+// Returns the original draft on empty / truncation / error — never breaks the run.
 export async function redactUngrounded(args: {
   draft: string;
   source: string;
@@ -18,9 +16,7 @@ export async function redactUngrounded(args: {
   if (!draft) return args.draft;
   const tag = (args.language ?? "zh") === "zh" ? "「待核实」" : "[unverified]";
   const isScript = args.mode === "script";
-  // Script mode keeps stable common knowledge: scripts routinely cite well-known facts
-  // (launch years, founders, classic specs) that a thin per-topic source can't support,
-  // and redacting those was gutting the specificity that makes scripts land.
+  // Script mode keeps stable public knowledge — redacting it gutted the specificity scripts need.
   const fixRule = isScript
     ? `judge it by tier:
   (a) STABLE public knowledge — a fact that has sat unchanged in public records for years (a product's launch year, a company's founder, a classic model's specs) — and you are HIGHLY confident of it → keep it;
@@ -30,8 +26,7 @@ export async function redactUngrounded(args: {
   const emptyRule = isScript
     ? `If the SOURCE is empty or has no concrete data, apply the same tiers: keep only STABLE public knowledge you are HIGHLY confident of; every other specific price / spec / stat / named product / quote must be generalized into natural spoken wording (never insert ${tag}).`
     : `If the SOURCE is empty or has no concrete data, the DRAFT must end up with NO specific prices / specs / stats / named products / quotes — generalize or ${tag} all of them (strategy-level wording is fine).`;
-  // A sectioned script's [HOOK]/[ITEM]/[CTA]/etc markers are structure the UI splits on — a
-  // heavy rewrite was dropping them. They are not factual claims; keep every one in place.
+  // Section markers are what the UI splits on, and a heavy rewrite was dropping them.
   const markerRule = isScript
     ? `\n- This is a sectioned script: keep EVERY structural marker ([HOOK], [TEASE], [ITEM 1], [ITEM 2], [CLIMAX], [CTA], [CLOSE], …) exactly where it is, on its own line. They are structure, not factual claims — never drop, merge, move, or reword a marker.`
     : "";
@@ -58,9 +53,8 @@ ${args.source?.trim() || "(none provided — treat ALL specific figures, specs, 
 ## DRAFT
 ${draft}`;
   try {
-    // Default Flash: redaction is mechanical and a reasoning model truncates long docs.
-    // tier:"fallback" (Pro-first, Flash on empty) is for SHORT drafts (scripts) where
-    // Pro's world knowledge catches factual errors and the length is safe.
+    // Flash by default: redaction is mechanical and a reasoning model truncates long docs.
+    // tier:"fallback" (Pro-first) is only safe on short drafts, where Pro catches factual errors.
     const maxOutputTokens = args.maxOutputTokens ?? 16384;
     let out: string;
     let finishReason: string | undefined;
@@ -77,13 +71,12 @@ ${draft}`;
       args.logger?.warn?.("grounding pass returned empty; keeping draft");
       return args.draft;
     }
-    // If the pass hit the length cap, ship the original — un-redacted but complete beats truncated.
+    // Un-redacted but complete beats truncated.
     if (finishReason === "length") {
       args.logger?.warn?.(`grounding pass truncated (length cap); keeping original draft`);
       return args.draft;
     }
-    // Catastrophic shrink: intermittent over-redaction can gut the draft (seen 0.16×); a
-    // complete draft beats a hollow one. Normal redaction removes well under 40%.
+    // Intermittent over-redaction can gut the draft (seen 0.16×); normal redaction removes well under 40%.
     if (out.length < draft.length * 0.6) {
       args.logger?.warn?.(`grounding pass shrank ${draft.length}→${out.length} (<0.6x); keeping draft`);
       return args.draft;

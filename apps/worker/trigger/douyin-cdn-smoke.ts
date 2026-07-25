@@ -25,8 +25,7 @@ async function tikhub<T>(path: string): Promise<T> {
   return json.data;
 }
 
-// Range + no Referer mirrors how ASR/vision will fetch; wrong Referer is the
-// only known 403 trigger on Douyin CDN, so we never send one.
+// A wrong Referer is the only known 403 trigger on Douyin CDN, so never send one.
 async function probe(label: string, url: string, ua: "browser" | "none"): Promise<ProbeResult> {
   const host = new URL(url).host;
   const t0 = Date.now();

@@ -10,9 +10,8 @@ export type Stage = {
 type Props = {
   stages: Stage[];
   currentPhase: string | undefined;
-  /** When the run reaches a terminal status, mark every stage as done. */
   allDone?: boolean;
-  /** Tailwind color class (e.g. "text-clerk" / "text-muse" / "text-poet") for current spinner. */
+  /** Tailwind text color class, e.g. "text-clerk" / "text-muse" / "text-poet". */
   accentClass?: string;
 };
 

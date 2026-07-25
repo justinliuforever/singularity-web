@@ -57,8 +57,7 @@ export default async function SopsLibraryPage() {
     .where(or(eq(channels.userId, user.id), eq(competitorAccounts.userId, user.id)))
     .orderBy(desc(clerkSops.generatedAt));
 
-  // Scope to the viewer's projects — without the join the counts aggregate
-  // every user's bindings.
+  // Without the projects join these counts aggregate every user's bindings.
   const usage = await db
     .select({ sopId: projectSops.sopId, n: count() })
     .from(projectSops)
@@ -84,7 +83,6 @@ export default async function SopsLibraryPage() {
       : { competitorAccountId: r.competitorId! },
   }));
 
-  // Group by source within each kind, preserving generatedAt-desc first appearance.
   const buildGroups = (kind: "own" | "competitor") => {
     const groups = new Map<
       string,

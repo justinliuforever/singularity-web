@@ -27,14 +27,13 @@ export function ApplyForm() {
     onSuccess: () => setPhase("success"),
   });
 
-  const totalSteps = SURVEY_QUESTIONS.length + 1; // + contact
+  const totalSteps = SURVEY_QUESTIONS.length + 1;
   const stepIndex = phase === "contact" ? totalSteps : typeof phase === "number" ? phase + 1 : 0;
 
   const setAnswer = (id: string, value: string | string[]) =>
     setAnswers((a) => ({ ...a, [id]: value }));
 
-  // Picking "其他" commits you to specifying it — enforced regardless of whether the
-  // question itself is required (e.g. Q4 is optional overall).
+  // Picking "其他" commits you to specifying it, even on an otherwise optional question.
   const otherNeedsText = (q: SurveyQuestion): boolean => {
     const v = answers[q.id];
     const selected =
@@ -52,7 +51,6 @@ export function ApplyForm() {
     return typeof v === "string" && v.length > 0;
   };
 
-  // Only the states that look finished get a reason; an unanswered question doesn't.
   const emailError =
     email.trim().length > 0 && !EMAIL_RE.test(email.trim())
       ? "请填写完整的邮箱地址，例如 you@example.com"
@@ -247,7 +245,6 @@ function QuestionStep({
     if (cur.includes(opt)) {
       nextVal = cur.filter((o) => o !== opt);
     } else if (q.exclusiveOption && opt === q.exclusiveOption) {
-      // "没遇到过" contradicts every concrete pain — it stands alone.
       nextVal = [opt];
     } else {
       const base = q.exclusiveOption ? cur.filter((o) => o !== q.exclusiveOption) : cur;

@@ -25,8 +25,7 @@ export const createChannelInput = z
   .object({
     name: z.string().min(1, "Required").max(80),
     platform: platformSchema,
-    // Optional for 我的账号 — only needed if you later 复盘 the account in Clerk. The account's
-    // positioning lives in its Bible, not a free-text description.
+    // Optional: an own account only needs a homepage URL if it is later analyzed in Clerk.
     platformUrl: z.string().optional().default(""),
     description: z.string().max(500).optional().nullable(),
   })
@@ -64,5 +63,5 @@ export const updateChannelInput = z
 
 export type UpdateChannelInput = z.infer<typeof updateChannelInput>;
 
-// Re-exported so forms can validate without pulling in the full shared/clients path.
+// Re-exported so forms validate without pulling in the full integrations/clients path.
 export { isValidYoutubeChannelUrl, isValidXhsProfileUrl, isValidDouyinProfileUrl };

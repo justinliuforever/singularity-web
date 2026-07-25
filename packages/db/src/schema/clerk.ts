@@ -27,8 +27,8 @@ export const clerkVideos = pgTable(
   "clerk_videos",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Exactly-one-owner (0018): own rows carry channel_id+own_account_id, competitor rows
-    // carry competitor_account_id; CHECK clerk_videos_one_owner enforces the XOR.
+    // CHECK clerk_videos_one_owner (XOR): own rows carry channel_id+own_account_id, competitor
+    // rows carry competitor_account_id.
     channelId: uuid("channel_id").references(() => channels.id, { onDelete: "cascade" }),
     ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "cascade" }),
@@ -47,9 +47,8 @@ export const clerkVideos = pgTable(
     thumbnailWhyItWorks: text("thumbnail_why_it_works"),
     coverDiagnosis: text("cover_diagnosis"),
     coverTitleSuggestions: jsonb("cover_title_suggestions").$type<string[]>(),
-    // Explicit provenance. Inferring "vision ran" from coverDiagnosis/coverTitleSuggestions
-    // was wrong: the multi-image path never returns title suggestions and diagnosis is
-    // legitimately null for a clean cover, so real reads were reported as "no analysis".
+    // Explicit provenance: "vision ran" cannot be inferred from coverDiagnosis/coverTitleSuggestions
+    // — the multi-image path returns no suggestions and a clean cover has a null diagnosis.
     coverVisionAt: timestamp("cover_vision_at", { withTimezone: true }),
     openingHook: text("opening_hook"),
     openingHookType: text("opening_hook_type"),
@@ -64,8 +63,7 @@ export const clerkVideos = pgTable(
     retentionPattern: text("retention_pattern"),
     ctaPlacement: text("cta_placement"),
     keyTakeaways: text("key_takeaways"),
-    // Cached map-step distillation of this video's reusable patterns; the SOP reduce reads
-    // these compact summaries instead of full transcripts (0021, bounded context at any scale).
+    // Cached map-step distillation; the SOP reduce reads these instead of full transcripts.
     sopMapSummary: text("sop_map_summary"),
     verbatimFacts: jsonb("verbatim_facts").$type<VerbatimFact[]>(),
     chapters: jsonb("chapters").$type<Array<{ start_time: number; end_time: number; title: string }>>(),
@@ -75,10 +73,9 @@ export const clerkVideos = pgTable(
   },
   (table) => ({
     channelVideoUnique: unique("clerk_videos_channel_video_unique").on(table.channelId, table.platformVideoId),
-    // Owner-keyed twin of the channel unique; channel-scoped index retires with channel_id (契约末轮).
+    // Owner-keyed twin of the channel unique; retires together with channel_id.
     ownerVideoUnique: unique("clerk_videos_owner_video_unique").on(table.ownAccountId, table.platformVideoId),
-    // Competitor-side dedup twin: partial because NULLs make the own-side uniques
-    // vacuous for competitor rows (created in prod by 0018).
+    // Partial: NULLs make the own-side uniques vacuous for competitor rows.
     competitorVideoUnique: uniqueIndex("clerk_videos_competitor_video_unique")
       .on(table.competitorAccountId, table.platformVideoId)
       .where(sql`${table.competitorAccountId} is not null`),
@@ -86,7 +83,7 @@ export const clerkVideos = pgTable(
       .on(table.competitorAccountId)
       .where(sql`${table.competitorAccountId} is not null`),
     channelIdx: index("clerk_videos_channel_id_idx").on(table.channelId),
-    // Per-run settlement (sum durations WHERE run_id) runs on every analysis completion.
+    // Per-run settlement sums durations WHERE run_id on every analysis completion.
     runIdx: index("clerk_videos_run_id_idx").on(table.runId),
   })
 );
@@ -99,12 +96,10 @@ export const clerkSops = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     channelId: uuid("channel_id").references(() => channels.id, { onDelete: "cascade" }),
     ownAccountId: uuid("own_account_id").references(() => ownAccounts.id, { onDelete: "cascade" }),
-    // cascade (not set null): a SET NULL here would strand rows in violation of the
-    // one-owner CHECK when a competitor is deleted (0018 rebuilds the FK).
+    // cascade (not set null): SET NULL would strand rows in violation of the one-owner CHECK.
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "cascade" }),
     sopType: sopTypeEnum("sop_type").notNull(),
-    // single_video SOPs are tied to one analyzed video; channel-level SOPs
-    // (human/ai_reference/hottest) keep this NULL (0024).
+    // Set only for single_video SOPs; channel-level SOPs keep it NULL.
     videoId: uuid("video_id").references(() => clerkVideos.id, { onDelete: "set null" }),
     language: text("language").notNull().default("zh"),
     contentMd: text("content_md").notNull(),
@@ -117,8 +112,7 @@ export const clerkSops = pgTable(
     competitorIdx: index("clerk_sops_competitor_idx")
       .on(table.competitorAccountId)
       .where(sql`${table.competitorAccountId} is not null`),
-    // Re-run a single video → replace its prior SOP (per language), without touching the
-    // channel SOPs (their video_id is NULL, so this partial index ignores them).
+    // Re-running one video replaces its prior SOP per language; channel SOPs (video_id NULL) are ignored.
     singleVideoUnique: uniqueIndex("clerk_sops_single_video_unique")
       .on(table.videoId, table.language)
       .where(sql`${table.sopType} = 'single_video' AND ${table.videoId} is not null`),

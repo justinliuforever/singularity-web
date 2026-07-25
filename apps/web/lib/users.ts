@@ -21,15 +21,15 @@ async function upsertFromIdentity(identity: LogtoIdentity): Promise<User> {
   const email = identity.email ?? "";
   const displayName = identity.name ?? identity.username ?? null;
 
-  // Race-free single round trip: select-then-insert let concurrent first-login
-  // requests collide on the logto_id unique.
+  // Single round trip: select-then-insert let concurrent first-login requests
+  // collide on the logto_id unique.
   const [row] = await db
     .insert(users)
     .values({ logtoId: identity.sub, email, displayName, lastSeenVersion: APP_VERSION })
     .onConflictDoUpdate({
       target: users.logtoId,
-      // lastSeenVersion deliberately absent: a brand-new user has nothing "new" to
-      // announce, but existing users keep their value until they dismiss the dialog.
+      // lastSeenVersion deliberately absent: existing users keep theirs until they
+      // dismiss the what's-new dialog.
       set: { email, displayName },
     })
     .returning();

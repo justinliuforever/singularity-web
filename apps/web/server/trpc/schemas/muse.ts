@@ -8,7 +8,7 @@ export const startMonitorInput = z.object({
   language: z.enum(["en", "zh"]).default("zh"),
   // Subset of bound competitors to monitor; omitted = all bound, [] = none (extras-only run).
   competitorAccountIds: z.array(z.string().uuid()).max(50).optional(),
-  // Unbound competitors to include just for this run (one-off, not permanent 巡视对象).
+  // Unbound competitors included just for this run, never permanently bound.
   extraCompetitorAccountIds: z.array(z.string().uuid()).max(50).optional(),
   // Video/image filter for XHS + Douyin competitors; YouTube unaffected.
   contentFilter: z.enum(["all", "video", "image"]).optional(),

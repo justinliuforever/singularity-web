@@ -75,17 +75,13 @@ export default async function ClerkChannelPage({ params }: Props) {
   const sortedSops = [...sops].sort(
     (a, b) => (sopOrder[a.sopType] ?? 99) - (sopOrder[b.sopType] ?? 99),
   );
-  // Channel-level SOPs (the account's 3 main docs) stay in the primary section; per-video
-  // 单条拆解 SOPs get their own collapsed section so they don't crowd it out.
   const primarySops = sortedSops.filter(
     (s) => s.sopType !== "ai_reference" && s.sopType !== "single_video",
   );
   const singleVideoSops = sortedSops.filter((s) => s.sopType === "single_video");
   const aiReferenceSops = sortedSops.filter((s) => s.sopType === "ai_reference");
-  // hottest / single_video SOPs carry a videoId — surface the source post's title
-  // on the card so multiple breakdowns are tellable apart. Legacy hottest rows
-  // (generated before videoId was stamped) dissected the top-viewed video, which
-  // is videos[0] here (views DESC — same pick the worker made).
+  // Legacy hottest rows predate videoId; they dissected the top-viewed video, which is
+  // videos[0] here (views DESC — same pick the worker made).
   const videoTitleById = new Map(videos.map((v) => [v.id, v.title]));
   const sourceTitleOf = (sop: (typeof sops)[number]) =>
     (sop.videoId ? videoTitleById.get(sop.videoId) : undefined) ??

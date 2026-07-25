@@ -1,7 +1,7 @@
 import "server-only";
 
-// baseUrl priority: explicit override → Vercel stable prod alias (auto-updates on domain
-// bind) → per-deployment preview URL → localhost dev.
+// VERCEL_PROJECT_PRODUCTION_URL is the stable alias that follows domain binds; VERCEL_URL
+// is per-deployment and must stay below it.
 function resolveBaseUrl(): string {
   if (process.env.LOGTO_BASE_URL) return process.env.LOGTO_BASE_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;

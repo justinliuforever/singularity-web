@@ -7,7 +7,6 @@ import { resolveOwnedChannel } from "@/lib/account-access";
 
 type Props = { params: Promise<{ slug: string }> };
 
-// Projects are auto-provisioned with the account via ensureProjectSpine; placeholder until multi-project.
 export default async function NewProjectPage({ params }: Props) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);

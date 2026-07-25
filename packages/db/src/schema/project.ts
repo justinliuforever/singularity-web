@@ -8,8 +8,7 @@ import { ownAccounts } from "./own-account";
 import { poetBible } from "./poet";
 import { users } from "./users";
 
-// Backfilled with id == channels.id, so every content row's channel_id value already
-// equals its default project's id.
+// Backfilled with id == channels.id, so a content row's channel_id already equals its default project id.
 export const projects = pgTable(
   "projects",
   {

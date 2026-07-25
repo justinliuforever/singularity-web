@@ -6,8 +6,7 @@ import { projects } from "../schema/project";
 
 export type ResolvedBible = { bible: typeof poetBible.$inferSelect; viaFallback: boolean } | null;
 
-// Bibles are per-account (accountId = channel/own-account spine), shared across its projects;
-// viaFallback = served the account active Bible instead of the project's hard pin, for caller logging.
+// viaFallback = served the account's active Bible instead of the project's hard pin.
 export async function resolveActiveBible(
   db: PostgresJsDatabase,
   projectId: string,
@@ -19,8 +18,7 @@ export async function resolveActiveBible(
     .where(eq(projects.id, projectId))
     .limit(1);
   if (proj?.pin) {
-    // A stale pin (pointing at a now-deactivated Bible) falls through to the account active
-    // Bible instead of serving the wrong voice.
+    // A stale pin (Bible since deactivated) must fall through, not serve the wrong voice.
     const [pinned] = await db
       .select()
       .from(poetBible)

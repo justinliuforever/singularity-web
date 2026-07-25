@@ -10,9 +10,8 @@ function openDb() {
   return { client, db: drizzle(client) };
 }
 
-// A hard crash skips withRunDb's catch, leaving a run 'running' forever — it
-// lingers in history/UI and never settles. Close pending never-started >30min
-// (matches assertNoActiveRun's orphan cutoff) and running past the 4h maxDuration.
+// A hard crash skips withRunDb's catch, leaving a run 'running' forever. The 30min pending
+// cutoff must match assertNoActiveRun's orphan cutoff; 5h clears the 4h maxDuration.
 export const reapStuckRuns = schedules.task({
   id: "maint-reap-stuck-runs",
   cron: { pattern: "*/15 * * * *", environments: ["PRODUCTION"] },
@@ -48,8 +47,7 @@ export const reapStuckRuns = schedules.task({
   },
 });
 
-// Abandoned bible-import uploads hold bytea chunk rows; purge past their TTL
-// (CASCADE drops the chunks). Consumed/invalid rows keep metadata but no bytes.
+// Abandoned bible-import uploads hold bytea chunk rows; purging the file CASCADEs to them.
 export const gcBibleImports = schedules.task({
   id: "maint-gc-bible-imports",
   cron: { pattern: "30 * * * *", environments: ["PRODUCTION"] },
@@ -93,9 +91,8 @@ export const gcErrorEvents = schedules.task({
   },
 });
 
-// Proxy sessions are disabled on consecutive 403s but nothing re-enables them,
-// so the YouTube-ASR pool erodes permanently. Give each another chance once its
-// block has likely lifted (6h cooldown).
+// Nothing else re-enables sessions disabled on consecutive 403s, so the YouTube-ASR pool
+// would erode permanently; 6h is roughly how long a block lasts.
 export const reenableProxySessions = schedules.task({
   id: "maint-reenable-proxy-sessions",
   cron: { pattern: "0 * * * *", environments: ["PRODUCTION"] },

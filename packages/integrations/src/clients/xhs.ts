@@ -1,5 +1,5 @@
-// TikHub XHS client. All routes use the app_v2 series — the legacy /xiaohongshu/web/*
-// and /app/* prefixes are deprecated (scheduled for removal per the 2026-06 TikHub notice).
+// All routes use the app_v2 series: the legacy /xiaohongshu/web/* and /app/* prefixes are
+// deprecated and scheduled for removal (2026-06 TikHub notice).
 
 import { recordUsage } from "../metering";
 
@@ -14,8 +14,7 @@ function key(): string {
   return k;
 }
 
-// TikHub 5xx (Cloudflare 504 on overloaded origin) and 400 ("Please retry")
-// are commonly transient — retry up to 3x with 800ms backoff per RedFinch.
+// TikHub 5xx (Cloudflare 504 on overloaded origin) and 400 ("Please retry") are commonly transient.
 async function get<T>(
   endpoint: string,
   params: Record<string, string>,
@@ -67,7 +66,6 @@ export function extractXhsUserId(input: string): string | null {
     const m = parsed.pathname.match(/\/user\/profile\/([a-f0-9]{24})/i);
     if (m) return m[1]!;
   } catch {
-    /* fall through */
   }
   return null;
 }
@@ -75,8 +73,7 @@ export function extractXhsUserId(input: string): string | null {
 export function extractXhsNoteId(input: string): string | null {
   const s = input.trim();
   if (XHS_NOTE_ID_RE.test(s)) return s;
-  // Share-card pastes wrap the URL in title/emoji text ("60 【…】 😆 token 😆 https://…/explore/<id>"),
-  // so new URL(s) throws on the whole string. Scan for an embedded note URL anywhere first.
+  // Share-card pastes wrap the URL in title/emoji text, so new URL(s) throws on the whole string.
   const embedded = s.match(/(?:explore|discovery\/item)\/([a-f0-9]{16,32})/i);
   if (embedded) return embedded[1]!;
   try {
@@ -84,7 +81,6 @@ export function extractXhsNoteId(input: string): string | null {
     const m = parsed.pathname.match(/\/(?:explore|discovery\/item)\/([a-f0-9]{16,32})/i);
     if (m) return m[1]!;
   } catch {
-    /* fall through */
   }
   return null;
 }
@@ -230,8 +226,7 @@ type RawNoteDetailResp = {
 // app_v2/get_video_note_detail returns the note itself at data.data[0] (carries video_info_v2).
 type RawVideoDetailResp = { data?: { data?: RawNote[] } };
 
-// XHS share_info_v2.title comes wrapped as "@昵称的个人主页" (zh) or "@昵称's profile" (en
-// locale); strip both wrappers so the stored name isn't "昵称's profile".
+// share_info_v2.title arrives wrapped as "@昵称的个人主页" (zh) or "@昵称's profile" (en locale).
 function cleanNickname(raw: string | undefined): string {
   if (!raw) return "";
   return raw
@@ -242,8 +237,7 @@ function cleanNickname(raw: string | undefined): string {
     .trim();
 }
 
-// XHS API sometimes returns literal "无标题" even when creator set a title;
-// fall back to first non-empty line of desc.
+// XHS returns a literal "无标题" even when the creator set a title.
 function effectiveTitle(rawTitle: string, displayTitle: string, desc: string): string {
   for (const candidate of [rawTitle, displayTitle]) {
     const t = (candidate ?? "").trim();
@@ -262,10 +256,8 @@ export function computeXhsEngagement(n: {
   return n.likes + n.collectedCount * 2 + n.commentsCount * 3 + n.shareCount * 5;
 }
 
-// XHS CDN serves images as HEIF by default (see imageView2/.../format/heif).
-// Claude vision only accepts JPEG/PNG/GIF/WebP AND requires https — rewrite
-// both. The image-object signature isn't tied to the imageView2 params so the
-// JPG swap stays valid.
+// XHS CDN serves HEIF by default; Claude vision only accepts JPEG/PNG/GIF/WebP over https.
+// The image signature isn't tied to the imageView2 params, so the jpg swap stays valid.
 export function normalizeXhsImageUrl(url: string): string {
   if (!url) return url;
   return url
@@ -273,8 +265,7 @@ export function normalizeXhsImageUrl(url: string): string {
     .replace(/\bformat\/heif\b/gi, "format/jpg");
 }
 
-// Web XHS locks note pages behind xsec_token — a bare explore/<id> URL shows
-// "Page Isn't Available". Keep the token in the stored URL whenever we have one.
+// Web XHS locks note pages behind xsec_token — a bare explore/<id> URL shows "Page Isn't Available".
 export function buildXhsNoteUrl(noteId: string, xsecToken?: string | null): string {
   if (!xsecToken) return `https://www.xiaohongshu.com/explore/${noteId}`;
   const qs = new URLSearchParams({ xsec_token: xsecToken, xsec_source: "app_share" });
@@ -364,7 +355,6 @@ export async function resolveXhsUser(profileUrlOrId: string): Promise<XhsUser> {
   if (!userId) {
     throw new Error(`Could not extract XHS user_id from: ${expanded}`);
   }
-  // app_v2 replaces deprecated `web/get_user_info`. Response shape backward-compatible.
   const j = await get<RawUserInfo>("/api/v1/xiaohongshu/app_v2/get_user_info", { user_id: userId });
   const d = j.data?.data ?? {};
   const interactions = d.interactions ?? [];
@@ -384,8 +374,7 @@ export async function resolveXhsUser(profileUrlOrId: string): Promise<XhsUser> {
   };
 }
 
-// Returns up to `limit` notes from the user's recent feed, ordered as XHS returns
-// them (typically newest first; XHS doesn't expose explicit sort options).
+// Ordered as XHS returns them (typically newest first); the API exposes no sort option.
 export async function getXhsUserNotes(
   profileUrlOrId: string,
   limit = 5,
@@ -393,7 +382,6 @@ export async function getXhsUserNotes(
   const expanded = await expandXhsShortLink(profileUrlOrId);
   const userId = extractXhsUserId(expanded);
   if (!userId) throw new Error(`Could not extract user_id from: ${expanded}`);
-  // app_v2 replaces deprecated `web/get_user_notes_v2`. Response keeps `data.data.notes`.
   const j = await get<RawNoteListResp>("/api/v1/xiaohongshu/app_v2/get_user_posted_notes", {
     user_id: userId,
     num: String(Math.max(limit, 10)),
@@ -402,12 +390,9 @@ export async function getXhsUserNotes(
   return raws.slice(0, limit).map((n) => normalizeNote(n));
 }
 
-// Single-note fetch (note URL is the only handle, e.g. Custom Topic references or XHS
-// "urls" analysis). get_image_note_detail returns the requested note for BOTH image and
-// video ids ({user, note_list} — the legacy v4 shape), so it's the reliable identity/text
-// source; but it omits video streams. For video notes we supplement from
-// get_video_note_detail, whose data.data[0] is the note with video_info_v2 — reliable only
-// for video ids (it returns recommended notes for non-video ids), so we guard on id match.
+// get_image_note_detail returns the requested note for BOTH image and video ids, so it is the
+// reliable identity/text source, but it omits video streams. get_video_note_detail carries them
+// yet returns recommended notes for non-video ids — hence the id-match guard.
 export async function getXhsNoteDetail(
   noteId: string,
   xsecTokenHint?: string | null,
@@ -438,8 +423,7 @@ export async function getXhsNoteDetail(
   return normalizeNote(noteRaw, first.user, xsecTokenHint);
 }
 
-// Token-only fetch for list-sourced notes (list responses carry no share_info):
-// one image-detail call regardless of note type — enough to read share_info.link.
+// List responses carry no share_info, so the token needs one image-detail call (any note type).
 export async function getXhsNoteXsecToken(noteId: string): Promise<string | null> {
   const j = await get<RawNoteDetailResp>("/api/v1/xiaohongshu/app_v2/get_image_note_detail", {
     note_id: noteId,

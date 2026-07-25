@@ -1,5 +1,4 @@
-// All DB timestamps are stored as UTC (Postgres `timestamptz`).
-// Render uniformly in Asia/Shanghai so creators always see Beijing time.
+// DB timestamps are UTC (`timestamptz`); creators expect Beijing time everywhere.
 
 const TZ = "Asia/Shanghai";
 

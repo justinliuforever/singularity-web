@@ -40,7 +40,7 @@ export const DOUYIN_VIDEO_PREAMBLE = `NOTE: This is a Douyin (抖音) video, not
 - IMPORTANT: for ANY key that asks for [m:ss] (opening_structure, script_structure, rehooks_used, retention_pattern, cta_placement, key_takeaways), use APPROXIMATE ranges like "~0-10s" or "~中段" — never invent precise [m:ss] markers. Ignore instructions below demanding exact [m:ss]; this transcript has no real timeline.
 `;
 
-// De-translationese style guide shared by CHINESE_WRAPPER (Clerk SOP + Bible) and the Poet zh script prompts.
+// Shared by CHINESE_WRAPPER (Clerk SOP + Bible) and the Poet zh script prompts.
 export const ZH_STYLE_GUIDE = `用简体中文输出全文。这是给中国内容创作者看的实战手册，必须读起来像一个资深中文编导在讲话，不能有翻译腔或 AI 腔。
 
 ## 术语对照（按下面的说法写，禁止直译生造词）
@@ -75,15 +75,13 @@ export const CHINESE_WRAPPER = (innerPrompt: string) =>
 
 ${innerPrompt}`;
 
-// Quote-grounding for the SOP reduce prompts (en path; the zh path's 不编造 lives in ZH_STYLE_GUIDE).
-// Stops the reduce from dressing up paraphrase/inference as a sourced verbatim quote.
+// en path only — the zh equivalent (不编造) lives in ZH_STYLE_GUIDE.
 const QUOTE_GROUNDING_EN =
   'Put a phrase in quotation marks and attach a [Video N]/[Partial N] source citation ONLY if that exact phrase appears verbatim in the provided summaries/partials. If you are paraphrasing, generalizing, or inferring, do NOT use quotation marks and do NOT attach a source citation. Never invent example lines, prompt fragments, numbers, names, or rhetorical questions and present them as sourced.';
 
-// A zh summary/SOP of an English (or any other-language) video must keep the verbatim in the
-// transcript's ORIGINAL language — translating a quote and then citing it is fabrication. Prose
-// follows the target language; quotes never do. Used on the MAP -> partial-reduce -> SOP chain
-// (NOT in ZH_STYLE_GUIDE, where a zh Poet script legitimately wants full Chinese).
+// Translating a quote and then citing it is fabrication, so quotes stay in the transcript's
+// language. Only for the MAP -> partial-reduce -> SOP chain, NOT ZH_STYLE_GUIDE — a zh Poet
+// script legitimately wants full Chinese.
 const KEEP_QUOTE_LANG_EN =
   "Quoted evidence — any phrase in quotation marks plus its [m:ss] — MUST be copied VERBATIM in the transcript's ORIGINAL language; never translate a quoted line. Your synthesis/prose may be in the target language, but a quote stays in its source language exactly as written — otherwise drop the quotation marks and the citation (it is not a quote).";
 const KEEP_QUOTE_LANG_ZH =
@@ -145,8 +143,6 @@ export function buildVideoAnalysisPrompt(args: VideoAnalysisArgs): string {
 The transcript above contains [m:ss] markers every ~6 seconds. EVERY hook, structural beat, and rehook MUST quote the exact [m:ss] marker present in the transcript. Format: \`[m:ss] "exact quoted line"\`. Do NOT invent timestamps that are not in the transcript. Do NOT use percentages or relative positions ("intro", "midpoint") — use the [m:ss] anchor.`
     : '';
 
-  // Creator-authored chapters: only ~33% of videos have these but when present
-  // they're ground truth for the video's structural intent.
   const chaptersBlock =
     isVideo && args.chapters && args.chapters.length > 0
       ? `\n\n## Chapters (creator-defined — these are ground-truth structural intent)\n${args.chapters
@@ -156,9 +152,8 @@ The transcript above contains [m:ss] markers every ~6 seconds. EVERY hook, struc
           )}\n\nWhen these chapters exist, ALIGN your \`opening_structure\` and \`script_structure\` to the chapter boundaries. Quote or paraphrase the chapter titles — they are the creator's own intent labels.`
       : '';
 
-  // SponsorBlock segments: authoritative timestamps for intro/hook/sponsor/etc.
-  // sponsor/selfpromo words have already been stripped from the transcript so
-  // the LLM shouldn't see them, but reference them here so it knows the bounds.
+  // sponsor/selfpromo spans are already stripped from the transcript; listed here only
+  // so the model knows their bounds.
   const sponsorBlock =
     isVideo && args.sponsorChapters && args.sponsorChapters.length > 0
       ? `\n\n## SponsorBlock markers (authoritative timestamps; sponsor/selfpromo content already removed from transcript)\n${args.sponsorChapters
@@ -223,14 +218,12 @@ type VideoMapSummaryArgs = {
   durationSec: number | null;
   contentType?: 'video' | 'xhs_image' | 'xhs_video' | 'douyin_image' | 'douyin_video';
   transcript: string | null;
-  // Pre-rendered compact block of this video's structured analysis fields.
   analysis: string;
   language?: 'en' | 'zh';
 };
 
-// MAP step of the SOP map-reduce: distill ONE video into a compact, reusable
-// "playbook contribution" so the SOP reduce synthesizes over summaries, not raw
-// transcripts (bounded context). Output stays grounded in the provided source.
+// MAP step of the SOP map-reduce: the reduce synthesizes over these summaries rather than
+// raw transcripts, which is what bounds its context.
 export function buildVideoMapSummaryPrompt(args: VideoMapSummaryArgs): string {
   const language = args.language ?? 'en';
   const contentType = args.contentType ?? 'video';
@@ -245,7 +238,6 @@ export function buildVideoMapSummaryPrompt(args: VideoMapSummaryArgs): string {
       ? 'When you cite a moment, use the [m:ss] markers that actually appear in the transcript. Never invent a timecode.'
       : 'This transcript carries NO [m:ss] markers — locate moments approximately (opening / early / mid / late). Do NOT fabricate timecodes.';
 
-  // ASR can emit off-topic / wrong-language noise; treating that as real source produces invented "quotes".
   const garbledRule =
     'If the transcript is empty, garbled, clearly off-topic relative to the title, or in a language inconsistent with the title/content (a likely ASR error), TREAT IT AS NO TRANSCRIPT — do not quote or extract any lines, phrases, or parameters from it. Infer only from the title/cover and explicitly label those as inference. Never present an invented or ASR-noise line as a verbatim quote.';
 
@@ -293,11 +285,8 @@ type SopPartialReduceArgs = {
   language?: 'en' | 'zh';
 };
 
-// INTERMEDIATE reduce of the SOP map-reduce: collapse one chunk of per-video pattern
-// summaries into ONE compact "partial pattern set" in the same bullet shape as a video
-// map summary. Type-agnostic — its output is concatenated and fed to BOTH SOP types, so
-// it must stay neutral (no SOP template structure, no English-only assumption). Same
-// grounding discipline as the map prompt and the buildVideosSummaryText note.
+// Intermediate reduce: its output feeds BOTH SOP types, so it must stay neutral — no SOP
+// template structure, no English-only assumption.
 export function buildSopPartialReducePrompt(args: SopPartialReduceArgs): string {
   const language = args.language ?? 'en';
   const inner = `You are consolidating the per-video pattern summaries of ONE batch of a creator's videos into a single compact "partial pattern set". A later step merges several of these partials into the channel's full scriptwriting SOP, so capture this batch's transferable patterns faithfully — nothing should be lost.
@@ -333,8 +322,6 @@ type SopArgs = {
   transcriptCount?: number;
 };
 
-// When most/all videos lack a transcript, tell the SOP not to fabricate the
-// timestamp/quote-heavy sections the templates otherwise demand.
 function transcriptCoverageNote(transcriptCount: number | undefined, total: number): string {
   const tc = transcriptCount ?? total;
   if (tc >= total) return '';
@@ -616,15 +603,12 @@ type ImagePostArgs = {
   commentsSummary?: string | null;
 };
 
-// Image posts are XHS/Douyin only, so the deep dive is written in Chinese — no language arg
-// to silently ignore. Image posts carry no audio and no runtime, so the video deep-dive's time axis has
-// nothing to bind to. Cover claims are gated on the vision columns actually being set —
-// those are written only by a real image read, so their absence means "never looked".
+// XHS/Douyin only, so the output is Chinese — no language arg to silently ignore. No audio
+// and no runtime either, so the video deep-dive's time axis has nothing to bind to.
 export function buildImagePostSopPrompt(args: ImagePostArgs): string {
-  // Provenance gate. coverVisionAt is the explicit record that an image was actually read;
-  // the other two are legacy signals kept for rows written before that column existed.
-  // thumbnailDescription is never a signal — with no image it holds a caption-derived guess
-  // ("封面图很可能是…"), so relaying it would launder that guess as a finding.
+  // Provenance gate: coverVisionAt records that an image was really read; the other two are
+  // legacy signals for rows predating that column. thumbnailDescription is never a signal —
+  // with no image it holds a caption-derived guess, so relaying it would launder that guess.
   const hasCover = Boolean(
     args.coverVisionAt || args.coverDiagnosis || args.coverTitleSuggestions?.length,
   );
@@ -638,9 +622,8 @@ export function buildImagePostSopPrompt(args: ImagePostArgs): string {
         .join('\n')}`
     : '';
 
-  // Offering the section and then telling the model to skip it loses to the structure
-  // spec every time — it fills the header from the title and cites an analysis that was
-  // never run. With no cover read, the section simply does not exist.
+  // Offering the section and telling the model to skip it loses to the structure spec every
+  // time — it fills the header from the title and cites an analysis that never ran.
   const coverSection = hasCover
     ? `**封面钩子**
 只使用上面「封面（视觉分析结果）」里已有的描述，不要凭标题或正文推测画面里有什么。封面在图文里承担视频"前3秒"的角色：它决定用户在信息流里停不停。写清楚它靠什么让人停手，以及哪里还能更强。

@@ -20,7 +20,6 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      {/* Hand-drawn cloud — top-left */}
       <svg
         className="pointer-events-none absolute top-12 left-12 opacity-10"
         width="100"
@@ -37,7 +36,6 @@ export function Splash({ redirectTo, duration = 1500 }: Props) {
         />
       </svg>
 
-      {/* Hand-drawn cloud — bottom-right (mirrored) */}
       <svg
         className="pointer-events-none absolute right-12 bottom-12 scale-x-[-1] opacity-10"
         width="120"

@@ -80,7 +80,6 @@ import { asPositiveNumber, parseDurationToSec, parseLlmJson, safeText, sleep } f
 const ASR_MAX_DURATION_SEC = 60 * 60;
 
 type Payload = {
-  // Exactly one analysis target: own channel or competitor account.
   channelId?: string;
   competitorAccountId?: string;
   runId: string;
@@ -93,8 +92,7 @@ type Payload = {
   recencyMonths?: 1 | 3 | 6 | null;
 };
 
-// Stamped on every clerk_videos/clerk_sops row this run writes — single write path,
-// derived once from the payload, so run and content can't drift apart.
+// Stamped on every clerk_videos/clerk_sops row this run writes, derived once so run and content can't drift.
 type RunOwner = {
   channelId: string | null;
   ownAccountId: string | null;
@@ -103,8 +101,6 @@ type RunOwner = {
 
 type ClerkContentType = "video" | "xhs_image" | "xhs_video" | "douyin_image" | "douyin_video";
 
-// One clerk item after platform-specific fetching/transcription — the uniform input to
-// the shared analyze→vision→upsert core (XHS and Douyin resolve their own shape into this).
 type ResolvedClerkItem = {
   platformVideoId: string;
   title: string;
@@ -123,9 +119,8 @@ type ResolvedClerkItem = {
 function extractYoutubeVideoIdLocal(input: string): string | null {
   const s = input.trim();
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
-  // Pasted text can wrap the URL in title/emoji, so new URL(s) throws on the whole
-  // string — scan for an embedded watch/shorts/youtu.be id first (anchored to its
-  // URL context so an arbitrary 11-char substring can't false-match).
+  // Pasted text wraps the URL in title/emoji, so new URL() throws — scan for an embedded id
+  // first, anchored to its URL context so an arbitrary 11-char substring can't false-match.
   const embedded =
     s.match(/[?&]v=([A-Za-z0-9_-]{11})/) ??
     s.match(/(?:youtu\.be|\/shorts|\/live|\/embed|\/v)\/([A-Za-z0-9_-]{11})/);
@@ -173,8 +168,6 @@ type ResolvedVideoMeta = {
   sourceChannelId: string | null;
 };
 
-// Single source of truth so ASR eligibility / prompt / DB insert all use the
-// same fallback priority instead of scattered ?? chains.
 function resolveVideoMeta(args: {
   yt: YoutubeVideoMeta | null;
   info: YtdlpVideoMetadata | null;
@@ -210,8 +203,6 @@ function resolveVideoMeta(args: {
   };
 }
 
-// Compact render of a video's structured analysis fields — fed to the MAP prompt as its
-// `analysis` arg and reused as the per-video fallback summary when the map LLM call fails.
 function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
   const fields: Array<[string, string | null]> = [
     ["opening_hook_type", v.openingHookType],
@@ -230,9 +221,8 @@ function renderVideoAnalysisFields(v: typeof clerkVideos.$inferSelect): string {
     ["cover_diagnosis", v.coverDiagnosis],
   ];
   const lines = fields.filter(([, val]) => val).map(([k, val]) => `- ${k}: ${val}`);
-  // cover_title_suggestions is a GENERATED field (vision proposes alt titles, sometimes with
-  // numbers absent from the source) — kept on the video row + shown in the UI, but NOT fed
-  // into the SOP map/reduce, where it seeded fabricated specifics.
+  // cover_title_suggestions is deliberately absent: those vision-generated alt titles seeded
+  // fabricated specifics in the SOP map/reduce (still stored on the row and shown in the UI).
   return lines.join("\n");
 }
 
@@ -250,18 +240,14 @@ COVER RULES — a block's "Cover (vision)" lines are a first-hand read of that p
 8. Do not attach a descriptor to posts whose reads lack it. If one read says 圆框 and another 细框, the shared claim is 眼镜 — describe the common denominator or split the claim per post.
 9. Cover facts describe the cover only. Never carry them into the video body, and never present cover copy as a spoken line, a script opening, or an in-video beat.\n\n`;
 
-// Extracted so the budget packer can size each block; `index` is the 1-based label shown to the LLM.
 function renderVideoSummaryBlock(
   v: typeof clerkVideos.$inferSelect,
   summaries: Map<string, string>,
   index: number,
 ): string {
   const lines: string[] = [];
-  // XHS notes are labeled by kind so the SOP says 帖子N（图文/视频） instead of calling
-  // an image post "Video N".
-  // The Chinese citation form is carried in the label itself: a prose rule telling the model to
-  // map "Post N (video note)" → 帖子N（视频） was ignored in 7 of 8 measured runs, so give it the
-  // exact string to copy instead.
+  // The Chinese citation form is embedded in the label because a prose rule telling the model to
+  // map "Post N (video note)" → 帖子N（视频） was ignored in 7 of 8 measured runs.
   const label =
     v.contentType === "xhs_image"
       ? `Post ${index} (image note) [cite in Chinese as 帖子${index}（图文）]`
@@ -276,11 +262,9 @@ function renderVideoSummaryBlock(
   lines.push(`- Views: ${v.views?.toLocaleString("en-US") ?? "unknown"}`);
   lines.push(`- Duration: ${v.durationSec ?? "unknown"}s`);
   lines.push(`- Transcript source: ${v.transcriptSource ?? "none"}`);
-  // cover_vision_at records that an image was actually read; the other two are legacy signals
-  // for rows written before it existed. Inferring from them alone reported real multi-image
-  // reads as "no cover analysis" — the stack path returns no title suggestions and diagnosis is
-  // null for a clean cover. Injected verbatim: the MAP step only paraphrases, and the cover
-  // playbook needs the real read.
+  // cover_vision_at records that an image was actually read; the other two are legacy signals for
+  // older rows — gating on them alone reported real multi-image reads as "no cover analysis".
+  // Injected verbatim because the MAP step only paraphrases.
   if (v.coverVisionAt || v.coverDiagnosis || v.coverTitleSuggestions?.length) {
     if (v.thumbnailDescription) lines.push(`- Cover (vision) — what this post's own cover image shows: ${v.thumbnailDescription}`);
     if (v.thumbnailWhyItWorks) lines.push(`- Cover (vision) — why it works: ${v.thumbnailWhyItWorks}`);
@@ -291,8 +275,6 @@ function renderVideoSummaryBlock(
   return lines.join("\n");
 }
 
-// REDUCE-side context: render each video as its cached map summary (NOT the raw transcript),
-// so the SOP prompts get a bounded string regardless of transcript length or video count.
 function buildVideosSummaryText(
   videos: Array<typeof clerkVideos.$inferSelect>,
   summaries: Map<string, string>,
@@ -301,20 +283,16 @@ function buildVideosSummaryText(
   return VIDEOS_SUMMARY_NOTE + blocks.join("\n\n");
 }
 
-// SOP reduce context budget (chars). A safe slice of DeepSeek V4 Pro's ~64k-token window,
-// leaving room for the SOP prompt template + 16k output tokens. Map summaries average ~1k
-// chars, so this fits ~70+ videos in a single reduce. Below budget → single reduce (the
-// common case, zero behavior change). Above → hierarchical reduce (no video dropped).
+// Chars, not tokens: a safe slice of DeepSeek V4 Pro's ~64k-token window, leaving room for the
+// SOP template + 16k output. Over budget → hierarchical reduce, which drops no video.
 const REDUCE_CHAR_BUDGET = 80_000;
-// Per-chunk render cap for the hierarchical path — smaller than the budget so each partial
-// reduce call has its own headroom for the partial-reduce prompt + output.
+// Below the budget so each partial-reduce call keeps headroom for its own prompt + output.
 const REDUCE_CHUNK_BUDGET = 55_000;
-// Hard cap on recursion depth. One level covers hundreds of videos; the cap only guards a
-// pathological case (e.g. many huge summaries) — we never silently truncate beyond it.
+// One level covers hundreds of videos; the cap only guards pathological input — blocks pass
+// through unreduced rather than being truncated.
 const REDUCE_MAX_RECURSION = 2;
 
-// Greedy-pack ordered render strings into chunks each ≤ chunkBudget chars (a single block
-// larger than the budget becomes its own chunk rather than being dropped).
+// A block larger than the budget becomes its own chunk rather than being dropped.
 function packBlocksIntoChunks(blocks: string[], chunkBudget: number): string[][] {
   const chunks: string[][] = [];
   let current: string[] = [];
@@ -333,8 +311,6 @@ function packBlocksIntoChunks(blocks: string[], chunkBudget: number): string[][]
   return chunks;
 }
 
-// Run ONE partial-reduce LLM call over a chunk's concatenated summary text. On failure,
-// fall back to the raw chunk text so the chunk's content is never dropped.
 async function reduceOneChunk(args: {
   chunkText: string;
   language: "en" | "zh";
@@ -362,13 +338,10 @@ async function reduceOneChunk(args: {
       `SOP partial reduce ${args.chunkLabel} failed (${(err as Error).message?.slice(0, 120)}) — falling back to raw chunk summaries`,
     );
   }
-  // Resilience: keep the chunk's content rather than dropping it.
   return args.chunkText;
 }
 
-// Reduce ordered summary blocks to one videosData string: ≤ budget → single string; over →
-// pack into chunks, partial-reduce each CONCURRENTLY, concatenate, recurse if still over.
-// Type-agnostic and run once (shared by both SOP types). Never drops a block.
+// Never drops a block: over budget → pack into chunks, partial-reduce concurrently, recurse.
 async function buildReducedVideosData(args: {
   blocks: string[];
   language: "en" | "zh";
@@ -404,7 +377,6 @@ async function buildReducedVideosData(args: {
     ),
   );
 
-  // Re-wrap each partial as a labeled block so the next level / final SOP sees structured input.
   const partialBlocks = partials.map(
     (p, i) => `### Partial pattern set ${i + 1} of ${partials.length}\n\n${p}`,
   );
@@ -415,7 +387,6 @@ async function buildReducedVideosData(args: {
     } (level ${depth + 1})`,
   );
 
-  // Recurse if the concatenated partials still exceed budget (hundreds of videos).
   return buildReducedVideosData({
     blocks: partialBlocks,
     language,
@@ -462,8 +433,7 @@ function summarizeAnalysis(v: typeof clerkVideos.$inferSelect): string {
     .join("\n\n");
 }
 
-// Lenient — DeepSeek may wrap JSON in markdown or leave inner quotes
-// unescaped in CJK values; jsonrepair recovers both.
+// DeepSeek wraps JSON in markdown and leaves inner quotes unescaped in CJK values; jsonrepair recovers both.
 async function parseAnalysis(rawText: string): Promise<ReturnType<typeof clerkAnalysisToDbRow> | null> {
   let parsed: unknown;
   try {
@@ -519,9 +489,8 @@ async function parseAnalysis(rawText: string): Promise<ReturnType<typeof clerkAn
   return clerkAnalysisToDbRow(valid.data);
 }
 
-// Parallel videos (both XHS and YouTube paths). Higher = faster but more RAM +
-// more concurrent TikHub/Groq calls. 8 fits large-1x RAM; Groq Developer tier
-// (300 RPM) absorbs the ASR fan-out. Raise toward ~16 if APIs stay stable.
+// 8 fits large-1x RAM and Groq Developer tier (300 RPM) absorbs the ASR fan-out;
+// raise toward ~16 if the APIs stay stable.
 const VIDEO_CONCURRENCY = 8;
 
 export const analyzeChannel = task({
@@ -536,9 +505,7 @@ export const analyzeChannel = task({
 
     return withMeteredRunDb({ runId: payload.runId, userId: payload.userId, feature: "clerk-analyze-channel" }, async (db) => {
 
-    // Activity log + per-video tracks for the live progress panel. metadata.append
-    // pushes to an array realtime; videoTracks is keyed by id so concurrent videos
-    // (VIDEO_CONCURRENCY at a time) don't overwrite each other's state.
+    // videoTracks is keyed by id so concurrent videos don't overwrite each other's state.
     const appendLog = (msg: string) =>
       void metadata.append("log", { ts: Date.now(), msg });
     const tracks: Record<string, { title: string; phase: string; startedAt: number }> = {};
@@ -550,7 +517,6 @@ export const analyzeChannel = task({
       if (!payload.channelId === !payload.competitorAccountId) {
         throw new Error("Exactly one of channelId or competitorAccountId must be provided");
       }
-      // Both targets expose the same shape the pipeline consumes (id/name/platform/url);
       // `owner` decides which ownership columns get stamped and which dedup twin applies.
       let channel: { id: string; name: string; platform: "youtube" | "xhs" | "douyin"; platformUrl: string };
       let owner: RunOwner;
@@ -579,7 +545,6 @@ export const analyzeChannel = task({
         owner = { channelId: ch.id, ownAccountId: ch.id, competitorAccountId: null };
       }
       const isOwn = owner.channelId !== null;
-      // Dedup/lookup condition + ON CONFLICT arbiter for the active owner side.
       const ownerVideoCond = isOwn
         ? eq(clerkVideos.channelId, channel.id)
         : eq(clerkVideos.competitorAccountId, channel.id);
@@ -592,8 +557,8 @@ export const analyzeChannel = task({
 
       logger.info(`Analyzing ${isOwn ? "channel" : "competitor"}: ${channel.name} (${channel.platformUrl})`);
       appendLog(`开始分析 ${channel.name}`);
-      // Guard the flip: if the reaper already marked this run failed (queued > its cutoff),
-      // abort now — otherwise we'd deliver a run the user was already refunded for.
+      // If the reaper already marked this run failed, abort — otherwise we deliver a run
+      // the user was already refunded for.
       const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", startedAt: new Date() })
@@ -601,7 +566,6 @@ export const analyzeChannel = task({
         .returning({ id: pipelineRuns.id });
       if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
-      // Proxy pool only needed for YouTube ASR. XHS path uses TikHub directly.
       let proxyPool: ProxyPool | null = null;
       if (channel.platform === "youtube") {
         proxyPool = await loadProxyPool(db, { provider: "wealthproxies" });
@@ -622,10 +586,7 @@ export const analyzeChannel = task({
       let selectedCount = 0;
       let degradedToText = 0;
 
-      // Shared analyze → vision → upsert for one already-resolved item (XHS + Douyin
-      // resolve their own fetch/transcription into ResolvedClerkItem, then call this).
-      // Vision and LLM analysis are independent — raced. Throws on unparseable analysis
-      // so the caller's per-item catch records the failure.
+      // Throws on unparseable analysis so the caller's per-item catch records the failure.
       const analyzeVisionUpsert = async (
         item: ResolvedClerkItem,
         ctx: { stepBase: { current: number; total: number }; index: number; total: number },
@@ -661,8 +622,8 @@ export const analyzeChannel = task({
               })
             : null;
 
-        // Flash, not Pro: 4-7× faster and equally reliable (A/B verified). Retry once on
-        // parse/near-empty failure; 16384 leaves headroom so a valid response never truncates.
+        // Flash, not Pro: 4-7× faster and equally reliable (A/B verified); 16384 leaves
+        // headroom so a valid response never truncates.
         let dbAnalysisRaw: Awaited<ReturnType<typeof parseAnalysis>> = null;
         let lastHead = "";
         for (let attempt = 0; attempt < 2 && !dbAnalysisRaw; attempt++) {
@@ -707,16 +668,14 @@ export const analyzeChannel = task({
           });
           const visual = await visionPromise;
           if (visual) {
-            // A real read is authoritative for the whole field: keeping the text model's
-            // guess when one part comes back empty leaves a guess behind the vision gate.
+            // A real read is authoritative for the whole field: keeping the text model's guess
+            // for an empty part leaves a guess behind the vision gate.
             dbAnalysis.thumbnailDescription = visual.description || "";
             dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks || "";
             coverVisionAt = new Date();
             coverDiagnosis = visual.diagnosis;
             coverTitleSuggestions = visual.titleSuggestions.length > 0 ? visual.titleSuggestions : null;
           } else {
-            // Without this the cover silently falls back to the text model's guess and
-            // never reaches the SOP — invisible on the platform the complaint came from.
             logger.warn(`Vision returned no read for ${item.platformVideoId} — cover excluded from SOP`);
           }
         }
@@ -767,8 +726,8 @@ export const analyzeChannel = task({
             phase: "resolving notes",
             detail: `解析 ${payload.videoIds?.length ?? 0} 个小红书链接`,
           });
-          // Mobile share pastes are xhslink.com short links; expand to the full URL
-          // first, then keep the pasted URL's xsec_token as a fallback for the note URL.
+          // Mobile share pastes are xhslink.com short links; expand first, keeping the
+          // pasted xsec_token as a fallback for the note URL.
           const ids: Array<{ noteId: string; xsecToken: string | null }> = [];
           for (const line of payload.videoIds ?? []) {
             const expanded = await expandXhsShortLink(line);
@@ -847,8 +806,7 @@ export const analyzeChannel = task({
           .set({ total: xhsNotes.length, progress: 0 })
           .where(eq(pipelineRuns.id, payload.runId));
 
-        // Duration-weighted progress + ETA: notes run VIDEO_CONCURRENCY-parallel;
-        // video notes (ASR) cost far more than image posts, so weight by duration with a floor.
+        // Duration-weighted progress: video notes (ASR) cost far more than image posts.
         const noteDurOf = (n: (typeof xhsNotes)[number]) =>
           n.type === "video" && (n.durationSec ?? 0) > 0 ? Math.max(n.durationSec ?? 0, 30) : 45;
         const totalNoteDur = xhsNotes.reduce((s, n) => s + noteDurOf(n), 0);
@@ -857,8 +815,7 @@ export const analyzeChannel = task({
 
         let completedNotes = 0;
         const processOneNote = async (note: (typeof xhsNotes)[number], i: number) => {
-          // Drive the progress bar off a monotonic completion counter (parallel notes
-          // finish out of order, so the per-note index would make the bar jump).
+          // Parallel notes finish out of order, so the per-note index would make the bar jump.
           const stepBase = { current: completedNotes, total: xhsNotes.length };
           const titleAndDesc = [note.title, note.desc]
             .filter((s) => s.trim().length > 0)
@@ -1057,8 +1014,6 @@ export const analyzeChannel = task({
           const secUid =
             extractDouyinSecUserId(channel.platformUrl) ??
             (await resolveDouyinUser(channel.platformUrl)).secUserId;
-          // Always over-fetch: the list is pinned-first, so newest/popular both need a
-          // wider window to sort + truncate from, else old pinned videos occupy the slots.
           const fetchLimit = Math.min(60, limit * 4);
           let all = await getDouyinUserVideos(secUid, fetchLimit);
           if (payload.recencyMonths) {
@@ -1131,9 +1086,8 @@ export const analyzeChannel = task({
           });
 
           try {
-            // Play URLs expire in 60-90 min. urls-mode items carry a fresh `play` from
-            // selection — reuse it while comfortably inside the TTL; otherwise fetch the
-            // detail, which also refreshes the signed cover/image URLs.
+            // Play URLs expire in 60-90 min: reuse a carried `play` only well inside that TTL,
+            // otherwise refetch the detail (which also refreshes the signed cover/image URLs).
             const carried =
               item.play && (item.play.cdnUrlExpiresAt ?? 0) * 1000 > Date.now() + 10 * 60_000
                 ? ({ ...item, play: item.play } as DouyinVideo & { play: DouyinPlaySource })
@@ -1147,8 +1101,8 @@ export const analyzeChannel = task({
                   `Douyin detail refresh failed for ${item.awemeId}: ${(err as Error).message?.slice(0, 120)}`,
                 );
               }
-              // Without the detail there are no play streams, so a video silently becomes a
-              // caption-only analysis while still billing its full duration. Say so.
+              // No detail means no play streams: the video degrades to caption-only analysis
+              // while still billing its full duration.
               if (!detail && item.contentType === "douyin_video") {
                 degradedToText++;
                 appendLog(`「${item.title.slice(0, 24)}」详情获取失败，仅按文案分析（无转写）`);
@@ -1411,8 +1365,6 @@ export const analyzeChannel = task({
         .set({ total: selected.length, progress: 0 })
         .where(eq(pipelineRuns.id, payload.runId));
 
-      // Reuse the sort/recency-time enrichment if we already have it; only fetch
-      // when no upstream call covered selected IDs (i.e. newest source, no recency).
       const selectedIds = selected.map((v) => v.video_id);
       const needsFetch = selectedIds.some((id) => !candidateMeta.has(id));
       const ytMetaMap = needsFetch
@@ -1424,10 +1376,8 @@ export const analyzeChannel = task({
 
       const totalVideos = selected.length;
       let completedCount = 0;
-      // Duration-weighted progress + ETA: the loop runs VIDEO_CONCURRENCY videos
-      // in parallel over heterogeneous items (a 30s short vs a 60min ASR video), so neither flat
-      // 1/N nor count-throughput is honest. Weight each video by known duration (median fallback)
-      // and extrapolate remaining time from elapsed/doneShare, gated until a full wave or 25%.
+      // Duration-weighted: a 30s short and a 60min ASR video share one parallel wave, so flat
+      // 1/N is dishonest; the ETA stays hidden until a full wave or 25% has completed.
       const knownDurs = selected
         .map((v) => ytMetaMap.get(v.video_id)?.durationSec ?? 0)
         .filter((d) => d > 0)
@@ -1466,7 +1416,6 @@ export const analyzeChannel = task({
           const yt = ytMetaMap.get(videoId) ?? null;
           const meta = resolveVideoMeta({ yt, info, ref, videoId });
 
-          // Try transcript: caption-first → audio ASR. Skips audio if duration > cap.
           let finalTranscript: {
             text: string;
             languageCode?: string;
@@ -1480,8 +1429,7 @@ export const analyzeChannel = task({
             qwenFirst: likelyChineseText(meta.title),
           });
           if (asr) {
-            // Strip sponsor/selfpromo segments before timestamp rendering so the
-            // LLM doesn't analyze ad copy as content.
+            // Strip sponsor/selfpromo segments so the LLM doesn't analyze ad copy as content.
             const sponsorChapters = info?.sponsor_chapters ?? [];
             const cleanWords = stripAdSegments(asr.words, sponsorChapters);
             finalTranscript = {
@@ -1518,8 +1466,7 @@ export const analyzeChannel = task({
             language,
           });
 
-          // Vision and LLM analysis are independent — race them. 16K cap (vs 8K)
-          // prevents truncation on news-heavy videos with long structured JSON output.
+          // 16K cap (vs 8K) prevents truncation on news-heavy videos with long JSON output.
           const [result, visual] = await Promise.all([
             generateText({
               model: llm("pro"),
@@ -1540,9 +1487,8 @@ export const analyzeChannel = task({
               `Parse failed for ${videoId} (finish=${finish}, len=${result.text.length}). ` +
                 `Head: ${result.text.slice(0, 300)} | Tail: ${result.text.slice(-300)}`,
             );
-            // One stricter retry on Flash — Pro's empty/length-truncated reasoning
-            // output is the usual failure; Flash is reliable at 16K (A/B verified)
-            // and won't burn the budget on hidden reasoning tokens.
+            // Retry on Flash: Pro's usual failure is empty/length-truncated reasoning output,
+            // and Flash spends no budget on hidden reasoning tokens.
             const retry = await generateText({
               model: llm("flash"),
               prompt:
@@ -1573,8 +1519,8 @@ export const analyzeChannel = task({
           let coverTitleSuggestions: string[] | null = null;
           let coverVisionAt: Date | null = null;
           if (visual) {
-            // A real read is authoritative for the whole field: keeping the text model's
-            // guess when one part comes back empty leaves a guess behind the vision gate.
+            // A real read is authoritative for the whole field: keeping the text model's guess
+            // for an empty part leaves a guess behind the vision gate.
             dbAnalysis.thumbnailDescription = visual.description || "";
             dbAnalysis.thumbnailWhyItWorks = visual.whyItWorks || "";
             coverVisionAt = new Date();
@@ -1616,8 +1562,7 @@ export const analyzeChannel = task({
             .values(upsert)
             .onConflictDoUpdate({
               ...videoConflict,
-              // Re-analysis invalidates the cached SOP map summary — without this the
-              // reduce step keeps feeding SOPs from the OLD analysis after a full re-run.
+              // Without this the reduce step keeps feeding SOPs from the OLD analysis after a re-run.
               set: { ...upsert, sopMapSummary: null },
             });
 
@@ -1682,8 +1627,7 @@ export const analyzeChannel = task({
       }
 
       let sopsGenerated = 0;
-      // Regenerate SOPs if we wrote any new analysis OR in incremental mode
-      // even with 0 new videos (since existing rows might be stale or SOPs missing).
+      // Incremental with 0 new videos still regenerates: existing SOPs may be missing or stale.
       const shouldRegenerateSops =
         analyzed > 0 || (payload.mode === "incremental" && selectedCount === 0);
       if (shouldRegenerateSops) {
@@ -1703,8 +1647,7 @@ export const analyzeChannel = task({
           (sum, v) => sum + (typeof v.views === "number" ? v.views : 0),
           0,
         );
-        // Pass null when no real view data — prompt then says "unavailable"
-        // instead of misleadingly writing "Total views: 0".
+        // null when there is no real view data — the prompt then says "unavailable" instead of "Total views: 0".
         const totalViews = summedViews > 0 ? summedViews : null;
         const date = new Date().toISOString().split("T")[0]!;
         const transcriptCount = channelVideos.filter(
@@ -1713,9 +1656,8 @@ export const analyzeChannel = task({
             ["xhs_asr", "douyin_asr", "caption", "asr"].includes(v.transcriptSource ?? ""),
         ).length;
 
-        // MAP step: distill each video into a compact reusable-pattern summary so the SOP
-        // reduce works over summaries, not full transcripts (bounded context at any scale).
-        // Cached on the row; only videos missing a summary are (re)computed.
+        // MAP step: a per-video pattern summary, cached on the row, so the reduce works over
+        // summaries instead of full transcripts.
         const mapContentType = (v: typeof clerkVideos.$inferSelect) =>
           v.contentType === "xhs_video" ||
           v.contentType === "xhs_image" ||
@@ -1753,8 +1695,7 @@ export const analyzeChannel = task({
                   .where(eq(clerkVideos.id, v.id));
                 mapComputed++;
               } catch (err) {
-                // One failing video must not abort SOP generation: use a structured-field
-                // render transiently this run and leave the column null so it retries next time.
+                // One failing video must not abort SOP generation; the column stays null so it retries.
                 mapFailed++;
                 logger.warn(
                   `SOP map summary failed for "${v.title.slice(0, 50)}" — using structured-field fallback: ${(err as Error).message?.slice(0, 120)}`,
@@ -1769,8 +1710,6 @@ export const analyzeChannel = task({
           `SOP map step: ${summaries.size}/${channelVideos.length} videos summarized (computed=${mapComputed}, cached=${summaries.size - mapComputed - mapFailed}, fallback=${mapFailed})`,
         );
 
-        // Render ALL videos (views DESC, already ordered) as summary blocks;
-        // buildReducedVideosData bounds by char budget, never by dropping videos.
         const reduceBlocks = channelVideos.map((v, i) =>
           renderVideoSummaryBlock(v, summaries, i + 1),
         );
@@ -1782,12 +1721,10 @@ export const analyzeChannel = task({
           limitFn: (fn) => reduceLimit(fn),
         });
 
-        // Fetch + summarize top comments for the #1 video to feed Hottest SOP.
-        // Failures are non-blocking — SOP still runs without comments.
         let hottestCommentsSummary: string | null = null;
         const topVid = channelVideos[0];
-        // Per-platform fetcher, or null when the platform can't fetch comments (XHS has no
-        // comments wiring; YouTube needs the proxy pool) — capability and method stay in one place.
+        // null when the platform can't fetch comments: XHS has no comments wiring, YouTube
+        // needs the proxy pool.
         const fetchTopComments: (() => Promise<Array<{ text: string; likes: number }>>) | null =
           channel.platform === "douyin"
             ? async () =>
@@ -1840,12 +1777,8 @@ export const analyzeChannel = task({
           }
         }
 
-        // Atomic swap: keep old SOPs visible while new ones generate;
-        // delete only after each new one lands so the UI never goes blank.
-
-        // Each SOP is grounded against the material its prompt actually received:
-        // human/ai_reference read the map summaries, hottest reads the full transcript.
-        // Checking hottest against summaries redacted legitimate verbatim quotes.
+        // Each SOP is grounded against the material its prompt received — hottest reads the full
+        // transcript, and checking it against the map summaries redacted legitimate quotes.
         const sopSteps: Array<{
           type: "human" | "ai_reference" | "hottest";
           phase: string;
@@ -1895,8 +1828,8 @@ export const analyzeChannel = task({
                 );
                 return null;
               }
-              // The top-engagement item on an XHS/Douyin account is routinely an image
-              // post; the video prompt would bind a time axis to a 0-second "video".
+              // Top-engagement XHS/Douyin items are routinely image posts; the video prompt
+              // would bind a time axis to a 0-second "video".
               return top.contentType.endsWith("_image")
                 ? buildImagePostSopPrompt({
                     channelName: channel.name,
@@ -1944,8 +1877,6 @@ export const analyzeChannel = task({
           },
         ];
 
-        // 3 SOPs are mutually independent — race them. Slowest one (human, ~5 min
-        // for 24K-char output) sets the wall time; serial was 12-15 min.
         await metadata.set("progress", {
           current: 0,
           total: sopSteps.length,
@@ -1964,8 +1895,7 @@ export const analyzeChannel = task({
               return;
             }
             try {
-              // 16384 cap: the ai_reference SOP (full English template) truncated at
-              // 12000 on rich multi-video channels; V4 Pro output headroom is large.
+              // 16384 cap: ai_reference truncated at 12000 on rich multi-video channels.
               const sopResult = await generateText({
                 model: llm("pro"),
                 prompt,
@@ -1978,8 +1908,7 @@ export const analyzeChannel = task({
                 logger.warn(`Empty ${step.type} SOP response`);
                 return;
               }
-              // Grounding pass: drop quotes/specs/timestamps the source doesn't support
-              // (ai_reference stays English, so tag in English).
+              // ai_reference stays English, so the grounding pass must be tagged English.
               const grounded = await redactUngrounded({
                 draft: cleaned,
                 source: step.groundingSource(),
@@ -1994,16 +1923,12 @@ export const analyzeChannel = task({
                   language,
                   contentMd: grounded,
                   runId: payload.runId,
-                  // Attribute the hottest deep-dive to its source video so the UI can
-                  // label which post it dissects (channel-level SOPs keep NULL).
+                  // Attributes the hottest deep-dive to its source video; channel-level SOPs keep NULL.
                   videoId: step.type === "hottest" ? (channelVideos[0]?.id ?? null) : null,
                 })
                 .returning({ id: clerkSops.id });
-              // Atomic swap: drop every prior SOP of this type for this owner — old runs AND
-              // any leftover from a retry of this same run (run_id is stable across retries) —
-              // cascading away their project_sops bindings, then (own targets only) bind the
-              // fresh SOP. Competitor SOPs are never auto-bound: projects adopt them explicitly
-              // via the P-B picker. project.id == channel.id for own targets.
+              // Swap only after the new SOP lands so the UI never goes blank; also drops leftovers
+              // from a retry of this run (run_id is stable). Competitor SOPs are never auto-bound.
               if (newSop) {
                 await db
                   .delete(clerkSops)
@@ -2045,8 +1970,7 @@ export const analyzeChannel = task({
           }),
         );
 
-        // Final guard, scoped to types we actually regenerated: a type that failed or was
-        // skipped keeps its previous SOP (and binding) rather than being wiped to empty.
+        // Scoped to regenerated types: one that failed or was skipped keeps its previous SOP.
         if (regeneratedTypes.size > 0) {
           await db
             .delete(clerkSops)
@@ -2062,13 +1986,13 @@ export const analyzeChannel = task({
         }
       }
 
-      // Every selected item failed → surface a failure (refund via withRunDb) instead of a
-      // silent "done" with 0 output. Incremental with 0 new items is a legitimate no-op.
+      // All items failed → fail the run (refund via withRunDb) instead of a silent "done" with
+      // 0 output; incremental with 0 new items is a legitimate no-op.
       if (selectedCount > 0 && analyzed === 0 && payload.mode !== "incremental") {
         throw new Error(`所有 ${selectedCount} 个内容处理失败，无产出`);
       }
 
-      // Settle 解析额度 from the videos this run actually stamped (duration-weighted).
+      // Settle parse quota from the videos this run actually stamped (duration-weighted).
       if (payload.userId) {
         const processed = await db
           .select({ durationSec: clerkVideos.durationSec })

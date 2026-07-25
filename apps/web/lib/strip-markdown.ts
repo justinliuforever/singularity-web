@@ -1,5 +1,4 @@
-// Flatten markdown to a plain one-line-ish snippet for previews/teasers (line-clamp),
-// so headings/bold/list markers and the machine "TOPIC:" prefix don't leak into the UI.
+// Previews only. Also drops the machine "TOPIC:" anchor line that bible/topic text carries.
 export function stripMarkdown(md: string | null | undefined): string {
   if (!md) return "";
   return md

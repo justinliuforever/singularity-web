@@ -26,14 +26,13 @@ export const museMonitorVideos = pgTable(
     runId: uuid("run_id").references(() => pipelineRuns.id, { onDelete: "set null" }),
   },
   (table) => ({
-    // Project-scoped unique: one competitor video per project, so two projects of the
-    // same account can independently store the same video (Round 4 multi-project).
+    // Project-scoped, so two projects of the same account can each store the same video.
     projectVideoUnique: unique("muse_monitor_videos_project_video_unique").on(
       table.projectId,
       table.platformVideoId,
     ),
     channelIdx: index("muse_monitor_videos_channel_id_idx").on(table.channelId),
-    // Per-run settlement (sum durations WHERE run_id) runs on every monitor completion.
+    // Per-run settlement sums durations WHERE run_id on every monitor completion.
     runIdx: index("muse_monitor_videos_run_id_idx").on(table.runId),
   })
 );

@@ -7,13 +7,11 @@ import { usageCounters } from "../schema/quota";
 import { pipelineRuns } from "../schema/runs";
 import { users } from "../schema/users";
 
-// Structural: accepts the bare worker client, the schema-typed web client, and
-// transaction handles alike.
+// Structural: fits the bare worker client, the schema-typed web client and tx handles alike.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDb = Pick<PostgresJsDatabase<any>, "select" | "insert" | "update">;
 
-// Single monthly minutes pool: analysis charges actual video minutes (image post
-// = flat equivalent), generation charges target-duration minutes or a flat rate.
+// One monthly minutes pool shared by analysis and generation.
 export const PLAN_LIMITS: Record<string, { minutesPerMonth: number; accountsMax: number }> = {
   free: { minutesPerMonth: 300, accountsMax: 30 },
 };
@@ -34,7 +32,6 @@ export function scriptMinutes(durationSec?: number | null): number {
   return Math.max(2, Math.ceil((durationSec ?? 300) / 60));
 }
 
-// Quota months roll over on the Asia/Shanghai calendar.
 export function currentPeriod(date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Shanghai",
@@ -93,10 +90,8 @@ export async function consumeMinutes(
     });
 }
 
-// End-of-run settle for content tasks, shared by analyze-channel and monitor-competitors.
-// Charges the DELTA against whatever the row already carries, so it stays correct if a
-// task ever charges up front, and claims the row BEFORE consuming: a failure between the
-// two then under-charges rather than leaving a charge no refund can find.
+// Charges the DELTA over what the row already carries, and claims the row BEFORE consuming:
+// a failure between the two under-charges rather than leaving a charge no refund can find.
 export async function settleRunMinutes(
   db: AnyDb,
   args: { runId: string; userId: string; minutes: number },
@@ -118,8 +113,7 @@ export async function settleRunMinutes(
   try {
     await consumeMinutes(db, { userId: args.userId, amount: delta });
   } catch (err) {
-    // The row already says charged; leaving it there would let a later refund return
-    // minutes that were never taken. Put it back before rethrowing.
+    // The row already says charged; leaving it would let a later refund return minutes never taken.
     await db
       .update(pipelineRuns)
       .set({ quotaCharged: prev })
@@ -147,9 +141,8 @@ export async function grantMinutes(
     });
 }
 
-// Refund a failed/canceled run's charge exactly once: the atomic quota_refunded flip
-// makes concurrent callers (cancel vs reaper vs worker catch) race-safe. Refund lands
-// in the current period floored at 0 — charge and refund are virtually always same-month.
+// Exactly once: the atomic quota_refunded flip keeps cancel / reaper / worker-catch race-safe.
+// Refund lands in the current period floored at 0 — charge and refund are near-always same-month.
 export async function refundRunQuota(db: AnyDb, runId: string): Promise<number> {
   const [row] = await db
     .update(pipelineRuns)

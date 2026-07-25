@@ -1,5 +1,5 @@
-// Pure URL validators, browser-safe: imported by client-side form schemas, so
-// this module must never pull in node-only APIs (the API clients do).
+// Browser-safe: imported by client-side form schemas, so this module must never pull in
+// node-only APIs (the API clients do).
 
 const XHS_USER_ID_RE = /^[a-f0-9]{24}$/i;
 
@@ -23,8 +23,7 @@ export function isValidYoutubeChannelUrl(input: string): boolean {
   }
 }
 
-// Mobile share pastes wrap an xhslink.com short link in card text ("@昵称 … 查看Ta的主页>>
-// https://xhslink.com/m/xxx"), so scan for an embedded URL instead of parsing the whole string.
+// Mobile share pastes wrap the short link in card text, so scan rather than parse.
 const XHS_SHORT_LINK_RE = /https?:\/\/(?:[\w-]+\.)?xhslink\.com\/[^\s"'<>，。；！？]+/i;
 
 export function findXhsShortLink(input: string): string | null {
@@ -35,8 +34,7 @@ export function isValidXhsProfileUrl(input: string): boolean {
   const s = input.trim();
   if (!s) return false;
   if (XHS_USER_ID_RE.test(s)) return true;
-  // Short links can't be verified here (browser-safe module, no network) — accept
-  // them and let the server expand the redirect and validate the real target.
+  // No network in this module — accept and let the server expand and validate the real target.
   if (findXhsShortLink(s)) return true;
   try {
     const u = new URL(s);
@@ -48,9 +46,7 @@ export function isValidXhsProfileUrl(input: string): boolean {
 }
 
 // sec_user_id always opens with the MS4wLjABAAAA prefix; live samples run 55 or 76 chars total.
-// Single source of truth — douyin.ts imports this rather than keeping its own copy.
 export const DOUYIN_SEC_UID_RE = /^MS4wLjABAAAA[A-Za-z0-9_-]{43,64}$/;
-// Mobile share pastes wrap a v.douyin.com short link in card text, so scan for an embedded URL.
 const DOUYIN_SHORT_LINK_RE = /https?:\/\/v\.douyin\.com\/[A-Za-z0-9_-]+/i;
 
 export function findDouyinShortLink(input: string): string | null {
@@ -61,7 +57,7 @@ export function isValidDouyinProfileUrl(input: string): boolean {
   const s = input.trim();
   if (!s) return false;
   if (DOUYIN_SEC_UID_RE.test(s)) return true;
-  // Short links can't be resolved here (browser-safe, no network) — accept and let the server expand.
+  // No network in this module — accept and let the server expand.
   if (findDouyinShortLink(s)) return true;
   try {
     const u = new URL(s);

@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 
-// Unknown sources read as "无字幕" — the competitor page's inline copy used to
-// label them "AI 转写", contradicting the channel page for the same data.
+// Shared so every surface labels the same source identically; an unknown source is "无字幕",
+// never "AI 转写".
 export function TranscriptSourceBadge({
   source,
   hasTranscript,

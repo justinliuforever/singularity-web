@@ -1,6 +1,5 @@
-// Document transcription via Claude Sonnet — faithful markdown for bible import.
-// Bake-off verified (2026-07): digital-PDF single call ≤15pp, 100% digit fidelity on
-// realistic scans, [无法辨识] honored at cropped screenshot edges.
+// Faithful-markdown transcription for bible import; the page thresholds below are bake-off
+// verified (2026-07), including digital-PDF single call at ≤15pp.
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, wrapLanguageModel } from "ai";
@@ -40,10 +39,9 @@ const VERBATIM_INSTRUCTION = `你是文档转写员。把下面的文档内容�
 
 export type TranscribeResult = { text: string; finishReason: string };
 
-// PDF text layers (font subsetting) can carry CJK radical codepoints (⻣⽪⼸) that render
-// like the real ideographs (骨皮弓) but break every string match downstream (drift bigrams,
-// name scrub, user copy-paste). Observed live with claude-sonnet-5 echoing them verbatim.
-// NFKC maps most; the U+2E80 block ones without a mapping get an explicit table.
+// PDF text layers (font subsetting) can carry CJK radical codepoints (⻣⽪⼸) that render like the
+// real ideographs (骨皮弓) but break every downstream string match (drift bigrams, name scrub,
+// copy-paste). NFKC maps most; U+2E80-block ones without a mapping need the explicit table.
 const RADICAL_FIXES: Record<string, string> = { "⻛": "风", "⻣": "骨", "⻥": "鱼", "⻓": "长", "⻆": "角", "⻘": "青" };
 export function normalizeCjkCompat(text: string): string {
   return text
@@ -152,8 +150,7 @@ export async function transcribeImage(
   }
 }
 
-// Numbers-only verify pass for sources without a text layer (scans / screenshots):
-// generative vision can hallucinate plausible digits; a second look catches drift.
+// Vision hallucinates plausible digits, and images have no text layer to cross-check against.
 export async function verifyImageNumbers(
   imageBytes: Uint8Array,
   transcript: string,
@@ -189,9 +186,6 @@ export async function verifyImageNumbers(
     return [];
   }
 }
-
-// ---------------------------------------------------------------------------
-// Document → faithful markdown orchestration (format routing, chunking, audit).
 
 export type ImportFlag = {
   type: "illegible" | "truncated" | "audit" | "image_failed";
@@ -340,8 +334,8 @@ async function transcribePdfDocument(
   }
 
   if (isDigital) {
-    // Deterministic cross-check: transcription digits must exist in the file's own text layer.
-    // Our own PAGE markers carry digits the text layer never has — strip them first.
+    // Transcription digits must exist in the file's own text layer; our own PAGE markers carry
+    // digits that layer never has, so strip them first.
     const layerDigits = digitTokens(textLayer);
     const withoutMarkers = transcript.replace(/^--- PAGE \d+ ---$/gm, "");
     const suspect = [...digitTokens(withoutMarkers)].filter((n) => !layerDigits.has(n));
@@ -352,7 +346,7 @@ async function transcribePdfDocument(
       });
     }
   } else {
-    // Scanned: no text layer — second-look numbers verify against the document itself.
+    // Scanned: no text layer, so verify the numbers against the document itself.
     const diffs = await verifyPdfNumbers(bytes, transcript, logger);
     for (const d of diffs.slice(0, 20)) {
       flags.push({ type: "audit", detail: `扫描件数字复核不一致：${d}` });
@@ -389,8 +383,7 @@ async function transcribeDocx(
   const images: { token: string; bytes: Uint8Array }[] = [];
   const seenMedia = new Set<string>();
 
-  // convertToHtml (not markdown): mammoth's md path drops table structure; HTML keeps
-  // <table> intact and the stage-2 LLM reads it fine.
+  // convertToHtml, not markdown: mammoth's md path drops table structure.
   const result = await mammoth.convertToHtml(
     { buffer },
     {
@@ -404,8 +397,8 @@ async function transcribeDocx(
   );
   let body = result.value ?? "";
 
-  // Reconcile against the raw zip: mammoth can drop anchored/floating images (common in
-  // WPS-authored Chinese docs) — append any missed media so no table screenshot is lost.
+  // mammoth drops anchored/floating images (common in WPS-authored Chinese docs), so reconcile
+  // against the raw zip and append what it missed.
   try {
     const zip = unzipSync(new Uint8Array(bytes), { filter: (f) => f.name.startsWith("word/media/") });
     const mediaNames = Object.keys(zip);
@@ -465,8 +458,8 @@ async function transcribeDocx(
   if (failed > 0) {
     flags.push({ type: "image_failed", detail: `${failed} 张内嵌图表转写失败，内容可能缺失，请对照原文件补充` });
   }
-  // Cropped spreadsheet previews ("点击图片可查看完整电子表格") lose their right side at
-  // the source — no extractor can recover data that isn't in the file.
+  // Cropped spreadsheet previews lose their right side at the source — no extractor can
+  // recover data that isn't in the file.
   if (/点击图片可?查看完整/.test(body)) {
     flags.push({
       type: "truncated",

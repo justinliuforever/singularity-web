@@ -33,7 +33,6 @@ export default async function AccountBiblePage({ params }: Props) {
     getActiveAgentRun(channel.id, user.id, "poet"),
   ]);
 
-  // Only watch a bible run here — an active script run belongs to the project poet page.
   const activeBibleRun =
     poetRun && ["poet-generate-bible", "poet-import-bible"].includes(poetRun.command) ? poetRun : null;
 
@@ -73,8 +72,8 @@ export default async function AccountBiblePage({ params }: Props) {
         }
       />
 
-      {/* Stays mounted after the last flag is confirmed — it is the card that says the
-          bible can now be activated, so removing it on confirm hides its own next step. */}
+      {/* Stays mounted after the last flag is confirmed — it is what says the bible can now
+          be activated, so dropping it on confirm would hide its own next step. */}
       {bibles
         .filter((b) => !b.isActive && (b.importFlags ?? []).length > 0)
         .map((b) => (

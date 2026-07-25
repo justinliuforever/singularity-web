@@ -7,8 +7,7 @@ import { factCheckVerbatim, type CheckedFact } from "./factCheck";
 import { formatReferencesBlock, type ScriptReference } from "./scriptWriter";
 
 function extractVerifiedSections(content: string): string | undefined {
-  // METHODOLOGY carries the full named systems + step order; FACT_SHEET the atomic
-  // facts. Both passed the import digit audit — the trustworthy subset of the bible.
+  // Only these two passed the import digit audit — the trustworthy subset of the bible.
   const out: string[] = [];
   for (const anchor of ["METHODOLOGY", "FACT_SHEET"]) {
     const m = content.match(new RegExp(`^##\\s+${anchor}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, "m"));
@@ -52,8 +51,7 @@ function toText(value: unknown): string {
 export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysis> {
   const verifiedFacts = args.trustedFactSheet ? extractVerifiedSections(args.bibleText) : undefined;
   const prompt = buildTopicAnalysisPrompt({
-    // Positioning/rules only: PERSONA/METHODOLOGY are the fact-leak surface this
-    // prompt's hardest rule exists to suppress.
+    // PERSONA/METHODOLOGY are excluded: they are the fact-leak surface this prompt suppresses.
     channelBible: selectBibleSections(args.bibleText, [
       "POSITIONING",
       "AUDIENCE",
@@ -62,9 +60,8 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
       "TOPIC_FRAMEWORK",
       "INFORMATION_SOURCES",
     ]),
-    // Imported bibles: digit-audited sections ride a dedicated verified-facts block
-    // (live QA: mixing them into the voice-only bible slice made the model anonymize
-    // specifics into 某种/若干 placeholders).
+    // Must stay a dedicated block: mixed into the voice-only bible slice, the model
+    // anonymized the specifics into 某种/若干 placeholders.
     verifiedFacts,
     sopReference: args.sopText,
     topic: args.topic,
@@ -74,8 +71,6 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
 
   let data: Record<string, unknown> = {};
   for (let attempt = 0; attempt < 2; attempt++) {
-    // Pro-first, auto-downgrade to Flash on empty so reasoning-budget burn doesn't
-    // yield an empty (but "successful") analysis.
     const result = await generateTextWithFallback({
       prompt,
       temperature: 0.6,
@@ -97,24 +92,22 @@ export async function analyzeTopic(args: AnalyzeTopicArgs): Promise<TopicAnalysi
     viralTrigger: toText(data.viral_trigger),
     factChecks: [],
   };
-  // Don't pass a content-less analysis off as success — the caller marks the topic
-  // 'analyzed' and feeds it to script generation. Fail loudly so the run retries.
+  // The caller marks the topic 'analyzed' and feeds it to script generation, so an
+  // empty analysis must fail loudly rather than pass as success.
   if (!analysis.storyAngle && !analysis.factsAndData) {
     throw new Error(
       "Topic analysis produced no usable content (story_angle + facts_and_data empty)",
     );
   }
-  // Grounding pass on the data-heavy field: drop specs/stats the references don't support.
-  // Verified account facts count as source — otherwise the empty-references rule
-  // generalizes them into 某种/一定范围 placeholders (live QA round 2).
+  // Verified account facts must count as source here — otherwise the empty-references
+  // rule generalizes them into 某种/一定范围 placeholders.
   analysis.factsAndData = await redactUngrounded({
     draft: analysis.factsAndData,
     source: [formatReferencesBlock(args.references ?? null), verifiedFacts ?? ""].filter(Boolean).join("\n\n"),
     language: args.language,
     maxOutputTokens: 4096,
   });
-  // Verify extracted verbatim facts against world knowledge — catches sourced-but-wrong
-  // claims the grounding pass keeps (it trusts cited sources). Marks only, never edits.
+  // Catches sourced-but-wrong claims the grounding pass keeps (it trusts cited sources).
   analysis.factChecks = await factCheckVerbatim({
     verbatimFacts: analysis.verbatimFacts,
     referenceTitles: (args.references ?? [])

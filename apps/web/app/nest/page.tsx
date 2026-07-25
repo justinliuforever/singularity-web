@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "· · ·",
-  // Unlisted page — reachable only by direct URL, keep it out of search indexes.
   robots: { index: false, follow: false },
 };
 

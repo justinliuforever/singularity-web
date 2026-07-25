@@ -1,6 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-// Muse is a per-project tool (§5); default project slug == account slug.
+// Default project slug == account slug.
 export default async function ProjectMuseRedirect({
   params,
 }: {

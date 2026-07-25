@@ -7,8 +7,6 @@ import { DeleteSopButton } from "../[slug]/_components/delete-sop-button";
 import { SopReader } from "./sop-reader";
 import { UseSopInProjectButton } from "./use-sop-in-project-button";
 
-// Single SOP card for all three surfaces (own channel / competitor / library) —
-// the previous three copies had already drifted apart.
 type SopLike = {
   id: string;
   sopType: string;
@@ -27,10 +25,8 @@ export function SopCard({
 }: {
   sop: SopLike;
   defaultOpen?: boolean;
-  // Competitor surfaces show provenance on the card itself.
   sourceName?: string;
-  // hottest / single_video SOPs: title of the post this SOP dissects, so multiple
-  // per-video breakdowns are tellable apart without expanding them.
+  // hottest / single_video SOPs: title of the post this SOP dissects.
   sourceVideoTitle?: string;
   usedBy?: number;
   showDelete?: boolean;

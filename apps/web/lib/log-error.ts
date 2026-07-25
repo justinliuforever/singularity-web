@@ -15,14 +15,13 @@ type LogInput = {
   meta?: Record<string, unknown> | null;
 };
 
-// Fire-and-forget error capture into our own DB (own-DB observability). Never throws —
-// a failing log must not break the request that triggered it.
+// Never throws: a failing log must not break the request that triggered it.
 export async function logServerError(input: LogInput): Promise<void> {
   try {
     await db.insert(errorEvents).values({
       message: input.message.slice(0, 4000),
       stack: input.stack?.slice(0, 8000) ?? null,
-      // Sink-side strip: the OIDC callback carries a live code + state in its query.
+      // Strip the query: the OIDC callback carries a live code + state.
       route: input.route?.split("?")[0]?.slice(0, 512) ?? null,
       method: input.method ?? null,
       kind: input.kind ?? null,
@@ -31,8 +30,7 @@ export async function logServerError(input: LogInput): Promise<void> {
       meta: input.meta ?? null,
     });
   } catch (e) {
-    // Never take down the request path — but keep a trace in the function log so a
-    // failing error-logger isn't itself invisible (else the panel would falsely read healthy).
+    // Swallowing silently would make the ops panel read healthy while capture is broken.
     console.error("logServerError failed:", e);
   }
 }

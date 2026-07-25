@@ -1,6 +1,5 @@
-// TikHub Douyin client. Profile is the web/handler_user_profile route ($0.001);
-// posts / single-video / stats use the app/v3 series (the web post list lags active
-// accounts by ~6 days). Comments use the web route.
+// Route mix is deliberate: profile on web/handler_user_profile ($0.001), posts / single-video /
+// stats on the app/v3 series, comments on the web route.
 
 import { recordUsage } from "../metering";
 import { expandShortLink } from "../utils";
@@ -22,8 +21,8 @@ function key(): string {
   return k;
 }
 
-// Deterministic business errors (bad id → data.status_code) must not be retried;
-// transient shapes (network, 5xx, upstream RetryError body) should be.
+// Deterministic business errors (bad id → data.status_code) must not be retried; transient
+// shapes (network, 5xx, upstream RetryError body) should be.
 class TikHubError extends Error {
   readonly retryable: boolean;
   constructor(message: string, retryable: boolean) {
@@ -39,11 +38,10 @@ type RawEnvelope = {
   data?: ({ status_code?: number; status_msg?: string } & Record<string, unknown>) | unknown;
 };
 
-// Invalid ids still return HTTP 200 and bill, so three failure shapes ride over 200:
-// a bare upstream exception body {"error":...} (transient — retry), a non-200 top-level
-// code, and a clean business error under data.status_code (deterministic — no retry).
-// Degenerate-but-successful shapes (user:{}, comments:null, aweme_detail missing) are
-// left for callers to map to null/empty — not raised here.
+// Invalid ids still return HTTP 200 and bill, so three failure shapes ride over 200: a bare
+// upstream exception body {"error":...} (transient), a non-200 top-level code, and a business
+// error under data.status_code (deterministic). Degenerate-but-successful shapes (user:{},
+// comments:null, aweme_detail missing) are left for callers to map to null/empty.
 function assertEnvelopeOk(json: RawEnvelope, endpoint: string): void {
   if (typeof json.error === "string" && json.code === undefined) {
     throw new Error(`TikHub ${endpoint}: ${json.error.slice(0, 160)}`);
@@ -63,9 +61,8 @@ function assertBusinessOk(json: RawEnvelope, endpoint: string): void {
   }
 }
 
-// 30s hard timeout (xhs.ts/tikhub.ts have none — a stalled TikHub origin could hang the run).
-// Retry transient 5xx / 429 / documented-transient 400 with backoff; 429 honors retry-after.
-// 4 × 1500ms·i backoff: live flaps of the "400 Please retry" kind outlasted a 3 × 800ms budget.
+// 30s hard timeout: a stalled TikHub origin would otherwise hang the run (xhs.ts/tikhub.ts have none).
+// 4 × 1500ms·i backoff — live flaps of the "400 Please retry" kind outlasted a 3 × 800ms budget.
 async function get<T>(endpoint: string, params: Record<string, string>, attempts = 4): Promise<T> {
   const qs = new URLSearchParams(params).toString();
   const url = `${BASE}${endpoint}${qs ? `?${qs}` : ""}`;
@@ -158,9 +155,8 @@ export type DouyinPlaySource = {
   cdnUrlExpiresAt: number | null;
 };
 
-// Canonical ASR candidate order: original-sound MP3 (cheapest, pure audio when the
-// guard passed), then low-bitrate video, then main play_addr as last resort. Shared by
-// both worker pipelines so the tier list can't drift between them again.
+// Canonical ASR candidate order: original-sound MP3 (cheapest, pure audio), then low-bitrate
+// video, then main play_addr. Shared by both worker pipelines so the tiers can't drift apart.
 export function buildDouyinAsrStreams(
   play: DouyinPlaySource,
 ): Array<{ url: string; mimeType: string; label: string }> {
@@ -246,9 +242,8 @@ function pathOf(url: string): string {
   return (q === -1 ? url : url.slice(0, q)).toLowerCase();
 }
 
-// Douyin CDN serves the same asset as .heic/.webp/.jpeg variants in url_list; the signature
-// is bound to the full path, so pick the entry whose path already ends .jpeg — rewriting a
-// suffix onto a signed URL 403s. Prefer jpeg, then webp, then any non-heic/heif/image.
+// url_list holds .heic/.webp/.jpeg variants of the same asset and the signature is bound to the
+// full path — rewriting a suffix onto a signed URL 403s, so pick an entry that is already jpeg.
 function pickJpegUrl(c: RawUrlContainer | undefined): string | null {
   const list = urlList(c);
   if (!list.length) return null;
@@ -265,8 +260,7 @@ function pickJpegUrl(c: RawUrlContainer | undefined): string | null {
 
 function normalizeVideo(raw: RawAweme): DouyinVideo {
   const awemeId = String(raw.aweme_id ?? "");
-  // media_type is the reliable discriminator (2 = image post); aweme_type 68 backstops
-  // items where media_type is absent so an image post can't slip through as video.
+  // media_type 2 = image post; aweme_type 68 backstops items where media_type is absent.
   const contentType =
     raw.media_type === 2 || raw.aweme_type === 68 ? "douyin_image" : "douyin_video";
   const desc = String(raw.desc ?? "");
@@ -308,8 +302,7 @@ function normalizeVideo(raw: RawAweme): DouyinVideo {
   };
 }
 
-// A creator's "原声" (own voice) is the only music safe to feed ASR: hot BGM is a 15-60s
-// looped song, not speech. Guard on the 原声 title AND a duration within 2s of the video.
+// A creator's "原声" is the only music safe to feed ASR: hot BGM is a 15-60s looped song, not speech.
 function pickOriginalSound(music: RawMusic | undefined, videoDurationSec: number): string | null {
   if (!music) return null;
   const url = urlList(music.play_url)[0];

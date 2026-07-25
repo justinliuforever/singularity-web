@@ -7,7 +7,7 @@ import { ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BibleChip } from "@/components/bible-chip";
 
-// Route shapes that carry account/project context. Clerk is account-level (no project).
+// Clerk routes are account-level and never carry a project.
 function parseContext(
   pathname: string,
 ): { kind: "accounts" | "clerk"; accountSlug: string; projectSlug?: string } | null {
@@ -62,8 +62,8 @@ export function ContextHeader() {
         manageHref={`/accounts/${a}/bible`}
       />
       {data.project && data.project.slug !== data.account.slug ? (
-        // Default project shares the account's slug AND name — a second crumb would
-        // just repeat it. Only named (future multi-) projects get their own crumb.
+        // The default project shares the account's slug and name, so a crumb for it
+        // would just repeat the one above.
         <>
           <ChevronRight className="size-3 shrink-0 text-muted-foreground opacity-50" />
           <Link

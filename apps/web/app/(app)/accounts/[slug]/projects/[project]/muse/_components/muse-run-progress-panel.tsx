@@ -134,14 +134,12 @@ export function MuseRunProgressPanel({
   const phase = progressData?.phase;
   const current = progressData?.current ?? 0;
   const total = progressData?.total ?? 0;
-  // Completed state renders in the window before router.refresh() unmounts the
-  // panel: bar fills, spinner becomes a drawn check.
   const done = run?.status === "COMPLETED";
   const pct = done ? 100 : total > 0 ? Math.round((current / total) * 100) : 0;
   const elapsed = formatElapsed(now - startedMs);
   const phaseLabel = done ? "巡视完成" : translatePhase(phase);
 
-  // Refresh on phase OR count change; 5s timer covers long ASR sits (90s+).
+  // Phase alone is too coarse — a single phase can sit on ASR for 90s+ while counts move.
   const lastPhaseRef = useRef<string | undefined>(undefined);
   const lastCurrentRef = useRef<number>(0);
   useEffect(() => {

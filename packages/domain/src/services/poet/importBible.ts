@@ -1,7 +1,3 @@
-// Bible file import stage-2: anchored bible generation from a faithful document
-// transcript, with build-time digit audit (content numbers ⊆ transcript numbers).
-// Thresholds validated in the R6 bake-off (notes/release-v0.6.md).
-
 import type { ImportFlag } from "@goooose/integrations/clients/docTranscribe";
 import { generateTextWithFallback } from "@goooose/integrations/clients/llm";
 import { buildBibleFromDocumentPrompt } from "@goooose/prompts/poet";
@@ -38,7 +34,7 @@ export async function generateBibleFromDocument(
     channelName: args.channelName,
     language: args.language,
   });
-  // Pro-first: fidelity restructuring benefits from the stronger model (bake-off: 0 digit violations).
+  // Pro-first: fidelity restructuring needs the stronger model (bake-off: 0 digit violations).
   let { text: content } = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.3 });
   content = content.trim();
   if (!content) throw new Error("Bible generation returned empty content");
@@ -52,7 +48,7 @@ export async function generateBibleFromDocument(
     logger: args.logger,
   });
 
-  // Build-time digit audit: every number in the bible must exist in the transcript.
+  // Digit audit: every number in the bible must exist in the transcript.
   const transcriptDigits = digitTokens(args.transcript);
   let violations = [...digitTokens(content)].filter((n) => !transcriptDigits.has(n));
   if (violations.length > 0) {

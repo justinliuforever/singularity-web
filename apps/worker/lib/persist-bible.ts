@@ -20,8 +20,8 @@ type PersistArgs = {
   blockActivation?: boolean;
 };
 
-// Shared by generate-bible and import-bible: never clobber an active bible; auto-activate
-// only when none is active yet; keep the project's hard pin in sync; record drift events.
+// Never clobbers an active bible: auto-activation happens only when none is active yet,
+// and the project's hard pin is kept in sync with it.
 export async function persistBible(db: PostgresJsDatabase, args: PersistArgs) {
   const [existingActive] = await db
     .select({ id: poetBible.id })

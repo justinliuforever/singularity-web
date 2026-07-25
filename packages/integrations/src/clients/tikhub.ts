@@ -14,7 +14,7 @@ async function get<T>(endpoint: string, params: Record<string, string> = {}): Pr
   const url = `${BASE}${endpoint}${qs ? `?${qs}` : ""}`;
   const attempts = 3;
   let lastErr: Error | null = null;
-  // Retry transient 5xx / 429 / documented-transient 400 with backoff (mirrors xhs.ts).
+  // 400 is retried too: TikHub returns a transient "Please retry" body under it.
   for (let i = 1; i <= attempts; i++) {
     try {
       const res = await fetch(url, {
@@ -45,7 +45,6 @@ async function get<T>(endpoint: string, params: Record<string, string> = {}): Pr
   throw lastErr ?? new Error(`TikHub ${endpoint} request failed`);
 }
 
-// Validates a YouTube channel landing URL (not a video URL).
 export { isValidYoutubeChannelUrl } from "../validators";
 
 export type YouTubeChannelMeta = {
@@ -58,7 +57,6 @@ export type YouTubeChannelMeta = {
 };
 
 // TikHub returns counts as display strings like "320K subscribers" or "81 videos".
-// Parse to integer; null on garbage.
 function parseDisplayCount(input: string | number | undefined | null): number | null {
   if (typeof input === "number") return Number.isFinite(input) ? input : null;
   if (!input) return null;
@@ -92,7 +90,6 @@ export async function resolveChannelId(channelUrl: string): Promise<string> {
   return data.channel_id;
 }
 
-// Response shape probed from the live API (counts are display strings); normalized to flat fields.
 type RawChannelInfo = {
   channel_id?: string;
   title?: string;
@@ -133,9 +130,8 @@ export type YouTubeVideoRef = {
 };
 
 export async function getChannelVideos(channelId: string): Promise<YouTubeVideoRef[]> {
-  // TikHub deprecated `web_v2/get_channel_videos` silently — it now returns
-  // an empty array for every channel. The unversioned `web/get_channel_videos`
-  // is the working endpoint as of 2026-05-20.
+  // TikHub silently deprecated `web_v2/get_channel_videos` — it returns an empty array for
+  // every channel; the unversioned route is the working one as of 2026-05-20.
   const data = await get<{ videos?: YouTubeVideoRef[]; continuation_token?: string }>(
     "/api/v1/youtube/web/get_channel_videos",
     { channel_id: channelId },
@@ -165,9 +161,8 @@ export type YouTubeVideoInfo = {
   captions: CaptionTrack[];
 };
 
-// `web_v2/get_video_info` returns empty data for Chinese YouTubers (e.g. 林亦LYi);
-// `get_video_streams_v2` covers both, but omits caption tracks — fetched separately
-// via `get_video_captions_v2`.
+// `web_v2/get_video_info` returns empty data for Chinese YouTubers; `get_video_streams_v2`
+// covers both but omits caption tracks, hence the separate `get_video_captions_v2` call.
 export async function getVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
   const [meta, captionsData] = await Promise.all([
     get<{
@@ -212,7 +207,7 @@ export async function getVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
   };
 }
 
-// Standalone captions call — getVideoInfo already includes them; use only when metadata isn't needed.
+// getVideoInfo already returns captions; use this only when the metadata isn't needed.
 export async function getCaptionsManifest(videoId: string): Promise<CaptionTrack[]> {
   const data = await get<{ captions?: CaptionTrack[] }>(
     "/api/v1/youtube/web_v2/get_video_captions_v2",
@@ -275,7 +270,6 @@ export async function transcriptFromTracks(
       const text = await fetchTranscriptText(track.base_url);
       if (text.length > 0) return { text, languageCode: track.language_code };
     } catch {
-      /* try next track */
     }
   }
   return null;

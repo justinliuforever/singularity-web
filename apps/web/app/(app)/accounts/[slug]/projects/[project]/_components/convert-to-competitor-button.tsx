@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
-// Self-serve exit for study targets added as own accounts; server guard refuses any with bible/script/topic/idea content.
+// The server guard refuses any account that already has bible/script/topic/idea content.
 export function ConvertToCompetitorButton({
   channelId,
   channelName,

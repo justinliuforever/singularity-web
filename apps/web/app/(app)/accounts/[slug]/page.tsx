@@ -54,9 +54,8 @@ export default async function AccountDetailPage({ params }: Props) {
   const unit = PLATFORM_CONTENT_UNIT[channel.platform];
   const itemNoun = `${unit.measure}${unit.noun}`;
   const activeBible = activeBibleRows.find((b) => b.isActive) ?? null;
-  // "A bible exists but none is live" — keying on open flags instead dropped the page back
-  // to the 先生成 empty state the moment the last flag was confirmed, i.e. the exact point
-  // the user was told activation was now possible.
+  // Parked = a bible exists but none is live. Keying on open flags instead would drop the
+  // page to the 先生成 empty state the moment the last flag is confirmed.
   const parked = activeBible ? [] : activeBibleRows;
   const parkedUnresolved = parked.filter((b) => (b.importFlags ?? []).some((f) => !f.resolved));
   const activeBibleRun =
@@ -64,7 +63,6 @@ export default async function AccountDetailPage({ params }: Props) {
       ? poetRun
       : null;
   const analyzed = (clerkVideoCount?.c ?? 0) > 0;
-  // No real homepage URL → nothing to pull, so the refresh button is hidden.
   const canRefresh =
     channel.platform === "xhs"
       ? isValidXhsProfileUrl(channel.platformUrl)
@@ -117,8 +115,7 @@ export default async function AccountDetailPage({ params }: Props) {
           <h2 className="text-sm font-medium text-muted-foreground">
             ① 频道圣经 · 账号的人设 / 受众 / 更新方向
           </h2>
-          {/* Any bible row at all — a parked import has none active, and hiding the entry
-              then strands it on a page the user can't reach from here. */}
+          {/* Any bible row, not just an active one — a parked import would be unreachable. */}
           {activeBibleRows.length > 0 ? (
             <Button variant="ghost" size="sm" render={<Link href={`/accounts/${a}/bible`} />}>
               管理圣经
@@ -138,8 +135,7 @@ export default async function AccountDetailPage({ params }: Props) {
           }
         />
 
-        {/* A parked import is a finished run the account page used to render as "nothing
-            happened" — it needs a surface here, not only on the bible page. */}
+        {/* A parked import is a finished run; without this card the page reads as "nothing happened". */}
         {parked.length > 0 ? (
           <Link href={`/accounts/${a}/bible`}>
             <Card className="border-amber-500/50 transition-colors hover:bg-muted/50">

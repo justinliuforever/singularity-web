@@ -50,7 +50,6 @@ export function CreateChannelForm() {
     setError(null);
 
     const url = platformUrl.trim();
-    // URL is optional; validate shape only when provided.
     if (url) {
       const isValidUrl =
         platform === "youtube"

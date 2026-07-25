@@ -6,8 +6,7 @@ import { projectSops } from "../schema/project";
 
 export type ResolvedSop = { id: string; contentMd: string };
 
-// Falls back to the account's own-channel ai_reference SOP (accountId = channel spine) so an
-// unbound project still resolves a sensible default.
+// An unbound project falls back to the account's own-channel ai_reference SOP.
 export async function resolvePrimarySop(
   db: PostgresJsDatabase,
   projectId: string,

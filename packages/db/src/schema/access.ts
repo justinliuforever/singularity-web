@@ -26,8 +26,7 @@ export const accessRequests = pgTable("access_requests", {
 });
 
 // Public beta survey (/apply): no login, so no users FK — email is the natural key.
-// answers holds {questionId: answer}; question set lives in the web app and is
-// versioned via surveyVersion, so editing questions never touches this table.
+// answers = {questionId: answer}; the question set lives in the web app, versioned by surveyVersion.
 export type BetaAnswers = Record<string, string | string[]>;
 
 export const betaApplications = pgTable("beta_applications", {

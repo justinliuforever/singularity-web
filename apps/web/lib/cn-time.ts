@@ -1,5 +1,4 @@
-// Lock greeting + day buckets to Asia/Shanghai so Vercel UTC servers and
-// travelling users still see China-time labels.
+// Pinned to Asia/Shanghai: Vercel servers run UTC, and users travel.
 
 const TZ = "Asia/Shanghai";
 

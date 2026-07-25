@@ -14,7 +14,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Reusable confirm — replaces native confirm() so destructive actions get a proper dialog.
 export function ConfirmDialog({
   trigger,
   title,

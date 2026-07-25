@@ -160,8 +160,7 @@ function ClerkRunProgress({
     }
   }, [phase]);
 
-  // Per-video rows land continuously within one phase; refresh every 5s so the
-  // table grows live (same pattern as Muse's progress panel).
+  // Per-video rows land continuously within one phase, so phase ticks alone leave the table stale.
   useEffect(() => {
     const id = setInterval(() => tickRef.current(lastPhaseRef.current), 5_000);
     return () => clearInterval(id);

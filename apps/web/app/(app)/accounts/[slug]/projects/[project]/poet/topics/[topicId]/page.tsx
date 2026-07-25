@@ -85,15 +85,13 @@ export default async function PoetTopicDetailPage({ params }: Props) {
     topic.sopId
       ? db.select().from(clerkSops).where(eq(clerkSops.id, topic.sopId)).limit(1).then((r) => r[0])
       : Promise.resolve(undefined),
-    // Action gating needs the CURRENT active bible, not the (possibly stale) one
-    // the topic was analyzed against.
+    // Gating needs the current active bible, not the one the topic was analyzed against.
     db
       .select({ id: poetBible.id })
       .from(poetBible)
       .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
       .limit(1),
-    // hasSop = what the writer resolves for THIS project (a bound competitor SOP counts),
-    // not just an own-channel ai_reference.
+    // Must mirror the writer's own resolution: a bound competitor SOP counts too.
     resolvePrimarySop(db as unknown as Parameters<typeof resolvePrimarySop>[0], project.id, channel.id),
   ]);
 

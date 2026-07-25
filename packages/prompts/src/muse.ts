@@ -86,8 +86,7 @@ Synthesize into 2-3 sentences covering: why people click, why they keep watching
 
 Return ONLY plain text (not JSON).
 `;
-  // The en path had no language directive and DeepSeek drifted to German ~1/3 of the time;
-  // name the language explicitly (zh is forced by CHINESE_WRAPPER).
+  // Without an explicit directive DeepSeek drifted to German ~1/3 of the time on the en path.
   return args.language === "zh"
     ? CHINESE_WRAPPER(inner)
     : `${inner}\n\nWrite the entire analysis in English.`;

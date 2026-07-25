@@ -1,9 +1,7 @@
 import "server-only";
 
-// Email HTML runs in a hostile environment (Gmail/QQ mail strip <style>, no web
-// fonts, tables only) — everything below is inline-styled and table-laid-out.
-// Visual system: white ground, left-aligned 480px column, neutral grays, black
-// primary button; the only brand color is the orange logo mark.
+// Gmail/QQ mail strip <style> and web fonts, so everything below must stay
+// inline-styled and table-laid-out.
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
 
@@ -80,8 +78,7 @@ export function renderApprovalEmail(baseUrl: string): string {
   });
 }
 
-// Resend REST hook — approval works without it; sending only activates once
-// RESEND_API_KEY + EMAIL_FROM (verified domain) are configured.
+// Never throws: approval must succeed even when Resend is unconfigured or down.
 export async function sendApprovalEmail(to: string): Promise<{ sent: boolean; reason?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;

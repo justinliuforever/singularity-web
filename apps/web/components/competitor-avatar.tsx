@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-// Plain <img> on purpose: avatars come from XHS/YouTube CDNs (no next/image
-// remotePatterns needed) and XHS blocks hotlinking with a referrer.
+// Plain <img>: XHS blocks hotlinking when a referrer is sent, and next/image would
+// need a remotePattern per CDN.
 export function CompetitorAvatar({
   name,
   avatarUrl,

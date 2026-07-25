@@ -75,7 +75,7 @@ export const poetBible = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    // Hard-guarantee a single active bible per channel (consumers do where(isActive).limit(1)).
+    // Consumers do where(isActive).limit(1), so at most one active Bible per channel.
     oneActivePerChannel: uniqueIndex("poet_bible_one_active_per_channel")
       .on(table.channelId)
       .where(sql`${table.isActive}`),
@@ -102,9 +102,8 @@ export type CustomTopicReference = {
   title?: string;
 };
 
-// Per-fact verification produced at topic-analysis time. status="disputed" means the
-// fact conflicts with well-known reality even though a source cites it (e.g. a wrong
-// product year); note carries the suggested correct value. We mark, never auto-edit.
+// "disputed" = a source cites the fact but it conflicts with known reality (e.g. a wrong product
+// year); note carries the suggested correction. We mark, never auto-edit.
 export type CheckedFact = {
   fact: string;
   src: string;
@@ -133,7 +132,7 @@ export const poetCustomTopics = pgTable("poet_custom_topics", {
   status: customTopicStatusEnum("status").notNull().default("draft"),
   bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
   sopId: uuid("sop_id").references(() => clerkSops.id, { onDelete: "set null" }),
-  // Provenance + dedup for ideas imported from Muse. Plain uuid (no FK) — idea rows may be deleted independently.
+  // Plain uuid (no FK): the source Muse idea may be deleted independently.
   sourceIdeaId: uuid("source_idea_id"),
   language: languageEnum("language").notNull().default("zh"),
   durationSeconds: integer("duration_seconds"),

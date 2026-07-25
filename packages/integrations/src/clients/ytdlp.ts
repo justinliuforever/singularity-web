@@ -6,13 +6,12 @@ import { join } from "node:path";
 import { listChannelUploads } from "./youtube-data";
 
 const YTDLP_VERSION = "2026.03.17";
-// macOS gets the universal binary; other platforms fall through to the Linux static build (fine on WSL).
 const YTDLP_ASSET = process.platform === "darwin" ? "yt-dlp_macos" : "yt-dlp_linux";
 const YTDLP_BIN = join(tmpdir(), `yt-dlp-${YTDLP_VERSION}-${process.platform}`);
 const RELEASE_URL = `https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${YTDLP_ASSET}`;
 
-// Reused by every yt-dlp call: skip live videos (hang forever), use clients that
-// don't need PO Token, kill stale cache that pollutes container `/tmp` re-uses.
+// Skip live videos (they hang forever), use player clients that don't need a PO Token, and
+// kill the stale cache that pollutes re-used container /tmp.
 const COMMON_FLAGS = [
   "--no-warnings",
   "--no-progress",
@@ -111,7 +110,7 @@ export type YtdlpVideoMetadata = {
   channel_name: string;
   description: string;
   upload_date: string | null;
-  // Lang codes available — empty arrays mean caption-first ASR is not available.
+  // Empty arrays mean caption-first ASR is not available for this video.
   auto_caption_langs: string[];
   manual_caption_langs: string[];
   // Creator-supplied chapter markers (only ~33% of videos have these).
@@ -157,8 +156,7 @@ export async function getVideoMetadataYtdlp(
       "--dump-single-json",
       "--skip-download",
       "--no-playlist",
-      // Crowd-sourced segment markers; populates sponsorblock_chapters[]. Falls
-      // back to empty array silently if SponsorBlock API is down.
+      // Populates sponsorblock_chapters[]; silently empty if the SponsorBlock API is down.
       "--sponsorblock-mark",
       "all",
       ...COMMON_FLAGS,
@@ -284,8 +282,8 @@ export async function getAutoCaptionsYtdlp(
     ],
     timeoutMs,
   );
-  // Even on exit≠0 yt-dlp may have written files for langs that succeeded
-  // before another lang hit 429. Continue and scan disk.
+  // Even on exit≠0 yt-dlp may have written files for langs that succeeded before another lang
+  // hit 429 — continue and scan disk.
   if (r.code !== 0) {
     logger?.info(
       `yt-dlp captions exited ${r.code} (partial-success possible) stderr=${r.stderr.slice(0, 200)}`,
@@ -306,7 +304,6 @@ export async function getAutoCaptionsYtdlp(
   }
   logger?.info(`yt-dlp captions: found ${myFiles.length} candidate files: ${myFiles.join(", ")}`);
 
-  // Lang is the substring between the last two dots: `.en.json3` → "en", `.zh-CN.json3` → "zh-CN".
   const candidates: Array<{ path: string; lang: string }> = myFiles.map((f) => {
     const m = f.match(/\.([\w-]+)\.json3$/);
     return { path: join(outDir, f), lang: m ? m[1]! : "unknown" };
@@ -322,7 +319,6 @@ export async function getAutoCaptionsYtdlp(
         try {
           unlinkSync(c.path);
         } catch {
-          /* fall through */
         }
       });
       if (text.length === 0) {
@@ -337,7 +333,6 @@ export async function getAutoCaptionsYtdlp(
     }
   }
 
-  // No preferred lang matched but we have files — try the first one as last resort.
   if (candidates.length > 0) {
     const first = candidates[0]!;
     try {
@@ -347,7 +342,6 @@ export async function getAutoCaptionsYtdlp(
         try {
           unlinkSync(c.path);
         } catch {
-          /* fall through */
         }
       });
       if (text.length === 0) return null;
@@ -358,7 +352,6 @@ export async function getAutoCaptionsYtdlp(
         try {
           unlinkSync(c.path);
         } catch {
-          /* fall through */
         }
       });
     }

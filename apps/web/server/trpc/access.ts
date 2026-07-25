@@ -40,8 +40,7 @@ function generateCode(): string {
   return `GOOSE-${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
 }
 
-// Send the approval email only on a real pending→approved transition, so every
-// approval path (request card, status dropdown, allowlist) notifies exactly once.
+// Only a real pending→approved transition mails, so every approval path notifies exactly once.
 async function emailIfApproved(transitioned: boolean, userId: string) {
   if (!transitioned) return { emailSent: false, emailSkipReason: "already_approved" };
   const [u] = await db
@@ -54,7 +53,7 @@ async function emailIfApproved(transitioned: boolean, userId: string) {
 }
 
 export const accessRouter = router({
-  // Server stamps its own APP_VERSION — the dialog's "seen" always matches what was shown.
+  // Server stamps its own APP_VERSION so "seen" always matches what was actually shown.
   markVersionSeen: authedProcedure.mutation(async ({ ctx }) => {
     await db
       .update(users)
@@ -122,13 +121,11 @@ export const accessRouter = router({
     };
   }),
 
-  // Public beta survey (/apply). Upsert by email: one row per person, resubmits
-  // overwrite answers and bump submitCount but never reset an ops status.
+  // Upsert by email: one row per person, resubmits overwrite answers but never reset the ops status.
   submitBetaApplication: publicProcedure
     .input(
       z.object({
-        // .regex over .email so the message is Chinese: tRPC puts the raw zod issue
-        // JSON in error.message and /apply renders it inline.
+        // .regex over .email: tRPC puts the raw zod issue in error.message, which /apply renders inline.
         email: z.string().trim().toLowerCase().regex(EMAIL_RE, "请填写正确的邮箱地址").max(200),
         wechat: z.string().trim().max(100).optional(),
         social: z.string().trim().max(200).optional(),
@@ -162,8 +159,7 @@ export const accessRouter = router({
           .onConflictDoUpdate({
             target: betaApplications.email,
             set: {
-              // The stepper never prefills, so a blank resubmit would otherwise wipe
-              // the only non-email way to reach this applicant.
+              // The stepper never prefills, so a blank resubmit would wipe the only non-email contact.
               wechat: sql`coalesce(${input.wechat || null}, ${betaApplications.wechat})`,
               social: sql`coalesce(${input.social || null}, ${betaApplications.social})`,
               answers: input.answers,
@@ -184,8 +180,6 @@ export const accessRouter = router({
       return { ok: true };
     }),
 
-  // Public: the landing-page invite entry checks a code before pushing the visitor
-  // through Logto. Read-only — never consumes a use.
   validateBetaCode: publicProcedure
     .input(z.object({ code: z.string().trim().toUpperCase().min(4).max(32) }))
     .mutation(async ({ ctx, input }) => {
@@ -264,8 +258,7 @@ export const adminRouter = router({
       })
       .from(accessRequests)
       .innerJoin(users, eq(users.id, accessRequests.userId))
-      // The queue is "who still needs a decision" — approving via any path
-      // (dropdown, allowlist) drops them here without touching access_requests.
+      // Filter on the user, not the request: other approval paths never touch access_requests.
       .where(eq(users.accessStatus, "pending"))
       .orderBy(desc(accessRequests.createdAt));
   }),
@@ -348,8 +341,7 @@ export const adminRouter = router({
       return { ok: true };
     }),
 
-  // One transaction: split across two mutations, a failed status write left a live
-  // access code with nothing pointing at it, and the retry minted a second.
+  // One transaction: a failed status write leaves a live code nobody points at, and the retry mints a second.
   inviteBetaApplicationByCode: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -360,7 +352,6 @@ export const adminRouter = router({
           .where(eq(betaApplications.id, input.id))
           .limit(1);
         if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "申请不存在" });
-        // Guard against a second admin window minting a duplicate code for the same applicant.
         if (app.status === "invited") {
           throw new TRPCError({ code: "CONFLICT", message: "该申请已发码" });
         }
@@ -370,7 +361,7 @@ export const adminRouter = router({
             code: generateCode(),
             grant: { access: true },
             maxUses: 1,
-            // Emails may run to 200 chars, which alone overflows the note column's cap.
+            // Emails run to 200 chars, which alone overflows the note column's cap.
             note: `问卷邀请 ${app.email}`.slice(0, 200),
             createdBy: ctx.user.id,
           })
@@ -534,8 +525,7 @@ export const adminRouter = router({
       .orderBy(desc(month), desc(sql`sum(${usageEvents.estimatedCostUsd})`));
   }),
 
-  // Ops monitor: recent runs across all users. "running/pending older than 30 min" is the
-  // stuck signal the reaper cron targets — surfaced here so an operator sees it live.
+  // The 30-minute stuck threshold must stay in step with the reaper cron.
   listRuns: adminProcedure
     .input(z.object({ status: z.enum(["all", "active", "failed", "stuck"]).default("all"), limit: z.number().int().min(1).max(200).default(60) }).optional())
     .query(async ({ input }) => {
@@ -581,13 +571,11 @@ export const adminRouter = router({
       return { rows, counts: counts ?? { active: 0, stuck: 0, failed24h: 0 } };
     }),
 
-  // Own-DB error observability: captured server-side by instrumentation onRequestError.
   listErrors: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(200).default(60) }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit ?? 60;
-      // Route-handler/RSC throws come from onRequestError, which has no session, so email
-      // is present only on tRPC-captured rows.
+      // instrumentation onRequestError has no session, so email is present only on tRPC-captured rows.
       const rows = await db
         .select({
           id: errorEvents.id,
@@ -659,8 +647,7 @@ export const adminRouter = router({
       if (input.userId === ctx.user.id) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "不能删除自己" });
       }
-      // FK cascades wipe channels/projects/runs/analyses; usage_events keep rows
-      // with user_id nulled for cost history.
+      // FK cascades wipe channels/projects/runs; usage_events rows survive with user_id nulled.
       await db.delete(users).where(eq(users.id, input.userId));
       return { ok: true };
     }),

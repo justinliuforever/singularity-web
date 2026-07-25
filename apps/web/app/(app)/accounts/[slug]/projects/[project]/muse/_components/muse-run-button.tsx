@@ -32,7 +32,6 @@ export function MuseRunButton({
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
         {isActive ? (
-          // Cancel lives in the run-progress panel below; here just show it's running.
           <Button disabled size="sm">
             <Loader2 data-icon="inline-start" className="animate-spin" />
             巡视中…

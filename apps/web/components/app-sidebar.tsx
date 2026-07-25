@@ -19,7 +19,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-// SOP 库 is now a tab inside Clerk (clerk-tabs.tsx), not its own nav slot.
+// SOP 库 lives as a tab in clerk-tabs.tsx, deliberately not a nav slot.
 const ANALYSIS = [
   { label: "Clerk · 分析师", href: "/clerk", icon: ScanSearch },
   { label: "用量与额度", href: "/usage", icon: Gauge },

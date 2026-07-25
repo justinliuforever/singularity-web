@@ -6,10 +6,8 @@ import { clampEta, formatEtaRange } from "@/lib/eta";
 import { coldStartRange, type EtaJobKey } from "@/lib/eta-jobs";
 import { trpc } from "@/lib/trpc";
 
-// Honest ETA for a running job. The user chose "range + step" over a single countdown, so a
-// live estimate renders as a *tightening band*; before live data, historical p50–p90 range.
-// Stays silent when the band would be too wide — false precision reads as broken.
-// The fraction gating/blending below keeps the number from visibly jumping when live takes over.
+// Always a range, never a countdown, and silent when the band is too wide — a precise
+// number that later moves reads as broken.
 export function EtaHint({
   jobKey,
   count,
@@ -24,8 +22,8 @@ export function EtaHint({
   const { data } = trpc.pipeline.etaHints.useQuery({ jobKey }, { staleTime: 300_000 });
   const t1 = data && data.n >= 5 && data.p90Sec > 0 ? { p50: data.p50Sec, p90: data.p90Sec } : null;
 
-  // Derived state with memory ("adjusting state during render" pattern): the displayed live
-  // value tracks the incoming estimate through clampEta so it never visibly jumps upward.
+  // Setting state during render is the intended "derived state with memory" pattern here:
+  // clampEta needs the previously displayed value, which an effect would apply a frame late.
   const [display, setDisplay] = useState<number | null>(null);
   const liveGated = fraction == null || fraction >= 0.1;
   if (liveSec != null && liveSec > 0 && liveGated) {
@@ -45,7 +43,6 @@ export function EtaHint({
     );
   }
 
-  // Cold-start: historical percentile range, else input-based band.
   const range = t1 ? { lo: t1.p50, hi: t1.p90 } : coldStartRange(jobKey, count);
 
   if (!range || range.hi <= 0) return null;

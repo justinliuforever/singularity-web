@@ -15,7 +15,7 @@ export const channels = pgTable(
     platformUrl: text("platform_url").notNull(),
     platformChannelId: text("platform_channel_id"),
     description: text("description"),
-    // Manually-refreshed follower count + freshness (own-account twin of competitor stats, 0025).
+    // Manually refreshed, not kept live by any job.
     subscriberCount: integer("subscriber_count"),
     lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

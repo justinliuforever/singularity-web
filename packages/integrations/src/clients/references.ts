@@ -32,7 +32,6 @@ export function extractYoutubeVideoId(url: string): string | null {
       if (m) return m[1]!;
     }
   } catch {
-    /* fall through */
   }
   return null;
 }

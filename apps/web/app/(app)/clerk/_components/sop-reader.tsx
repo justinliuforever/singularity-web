@@ -3,9 +3,8 @@ import type { Components } from "react-markdown";
 
 import { SopToc, type TocItem } from "./sop-toc";
 
-// Document reader for SOP markdown: a sticky section rail (SopToc) beside anchored,
-// styled sections (.prose-sop in globals.css). Async server component + dynamic import
-// for the same react-markdown ESM-interop reason as markdown.tsx.
+// Async server component + dynamic import for the same react-markdown ESM-interop reason
+// as markdown.tsx.
 
 function stripMd(s: string): string {
   return s.replace(/\*\*|__|`/g, "").trim();
@@ -38,8 +37,7 @@ export async function SopReader({
 }: {
   text: string;
   className?: string;
-  // Multiple SOP cards render on one page — prefix heading ids so identical
-  // section names across cards don't produce duplicate ids / broken scroll-spy.
+  // Several SOP cards share a page; without a prefix, equal section names collide as ids.
   idPrefix?: string;
 }) {
   const { default: ReactMarkdown } = await import("react-markdown");
@@ -59,7 +57,6 @@ export async function SopReader({
       const t = flattenText(children);
       return <h3 id={`${idPrefix}-${slugify(t)}`}>{children}</h3>;
     },
-    // Beat/spec tables are wider than the reading column — scroll them in place.
     table: ({ children }) => (
       <div className="sop-table-wrap">
         <table>{children}</table>
@@ -67,7 +64,7 @@ export async function SopReader({
     ),
   };
 
-  // Two-col grid only when SopToc renders (items>=3), else the doc lands in the rail track.
+  // Must match SopToc's own items<3 bail, else the doc lands in an empty rail track.
   const railClass = items.length >= 3 ? " sop-reader--with-rail" : "";
 
   return (

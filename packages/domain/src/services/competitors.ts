@@ -4,11 +4,10 @@ import { parseYoutubeChannelUrl } from "@goooose/integrations/clients/youtube-da
 
 export type CompetitorKey = { key: string; needsResolution: boolean };
 
-// Stage-A provisional dedup key for a competitor URL (no network). XHS user id, Douyin
-// sec_user_id and the canonical YouTube UC id are globally unique; YouTube @handles /
-// legacy /c//user/ URLs can't be canonicalized offline, so they get a lowercased
-// provisional key flagged needsResolution until the resolveChannelId pass canonicalizes
-// them to a UC id. Mirrors the backfill so new imports dedup against backfilled rows.
+// Offline dedup key. YouTube @handles and legacy /c//user/ URLs can't be canonicalized
+// without network, so they get a provisional key flagged needsResolution until the
+// resolveChannelId pass rewrites it to a UC id. Must mirror the backfill so new imports
+// dedup against backfilled rows.
 export function provisionalCompetitorKey(
   platform: "youtube" | "xhs" | "douyin",
   url: string,

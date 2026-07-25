@@ -62,7 +62,6 @@ export function WriteScriptButton({
   const utils = trpc.useUtils();
   const [pending, setPending] = useState(false);
   const [custom, setCustom] = useState("");
-  // Holds the chosen duration while the no-SOP AlertDialog awaits a decision.
   const [pendingSeconds, setPendingSeconds] = useState<number | null>(null);
 
   const mutation = trpc.poet.generateScript.useMutation({

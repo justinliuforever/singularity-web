@@ -70,7 +70,6 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
   const [extraIds, setExtraIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
 
-  // Only load the user's competitor pool once the sheet is opened.
   const allCompetitors = trpc.competitors.list.useQuery(undefined, { enabled: open });
   const boundIdSet = useMemo(() => new Set(competitors.map((c) => c.id)), [competitors]);
   const unbound = useMemo(
@@ -117,7 +116,6 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
     onSuccess: () => {
       toast.info(`已开始巡视「${channelName}」的对标账号`);
       setOpen(false);
-      // Re-fetch the server `activeRun` so the progress panel shows without a manual refresh.
       utils.invalidate();
       router.refresh();
     },

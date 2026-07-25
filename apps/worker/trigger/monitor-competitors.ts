@@ -62,7 +62,7 @@ type Payload = {
   language?: "en" | "zh";
   // Subset of bound competitor_accounts ids to monitor; omitted = all bound.
   competitorAccountIds?: string[];
-  // Unbound competitor_accounts to include just for this run (not permanent 巡视对象).
+  // Unbound competitor_accounts to include just for this run, not as permanent monitor targets.
   extraCompetitorAccountIds?: string[];
   // Video/image filter for XHS + Douyin competitors; YouTube is unaffected.
   contentFilter?: "all" | "video" | "image";
@@ -95,7 +95,6 @@ export const monitorCompetitors = task({
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
       const projectId = payload.projectId ?? channel.id;
 
-      // Competitors come from this project's project_competitors bindings.
       const bound = await db
         .select({
           competitorAccountId: competitorAccounts.id,
@@ -124,7 +123,6 @@ export const monitorCompetitors = task({
         }))
         .filter((c) => !idFilter || (c.competitorAccountId && idFilter.has(c.competitorAccountId)));
 
-      // One-off competitors for this run only — not part of the project's permanent bindings.
       const extraIds = (payload.extraCompetitorAccountIds ?? []).filter(
         (id) => !competitors.some((c) => c.competitorAccountId === id),
       );
@@ -163,7 +161,6 @@ export const monitorCompetitors = task({
         logger.info(`Competitor selection: ${competitors.length}/${bound.length} bound accounts`);
       }
 
-      // Muse touches both XHS and YouTube competitors; pool is YouTube-only.
       const hasYoutubeCompetitor = competitors.some((c) => c.platform === "youtube");
       let proxyPool: ProxyPool | null = null;
       if (hasYoutubeCompetitor) {
@@ -175,9 +172,9 @@ export const monitorCompetitors = task({
 
       const channelDescription = channel.description ?? channel.name;
 
-      // Bible is optional here — ideas still generate without it, just less positioning-aware.
+      // Optional: ideas still generate without a bible, just less positioning-aware.
       const resolvedBible = await resolveActiveBible(db, projectId, channel.id);
-      // Muse needs a positioning digest, not the whole bible (facts there are off-limits anyway).
+      // A positioning digest, not the whole bible — its facts are off-limits to Muse.
       const biblePositioning = resolvedBible
         ? selectBibleSections(resolvedBible.bible.content, ["POSITIONING", "AUDIENCE", "CONTENT_RULES"])
         : undefined;
@@ -247,8 +244,8 @@ export const monitorCompetitors = task({
             // Over-fetch + newest-first sort so old pinned videos don't crowd out fresh ones.
             let videos = await getDouyinUserVideos(secUid, Math.min(60, maxVideosPerCompetitor * 4));
             videos.sort((a, b) => b.createTime - a.createTime);
-            // Filter before truncating: the other order could return nothing while the
-            // already-fetched window still held plenty of matching items.
+            // Filter before truncating: the reverse order can return nothing while the fetched
+            // window still holds plenty of matching items.
             if (contentFilter !== "all") {
               videos = videos.filter((v) =>
                 contentFilter === "video"
@@ -269,7 +266,7 @@ export const monitorCompetitors = task({
               });
             }
           } else {
-            // YouTube has no image posts, so an 图文-only run must exclude it rather than
+            // YouTube has no image posts, so an image-only run must exclude it rather than
             // silently returning every video as if the filter did not apply.
             if (contentFilter === "image") {
               logger.info(`Competitor ${comp.url}: YouTube has no image posts — skipped by filter`);
@@ -339,9 +336,8 @@ export const monitorCompetitors = task({
         transcript: string;
       }> = [];
 
-      // Stage-weighted live ETA: extrapolate remaining time from elapsed /
-      // weighted-progress so the classify→idea-gen boundary doesn't reset. Classify (with ASR)
-      // is ~65% of the timeline; serial loop so this is a sound estimator.
+      // Classify (with ASR) is ~65% of the timeline; weighting it keeps the ETA from resetting
+      // at the classify→idea-gen boundary.
       const etaStart = Date.now();
       const etaField = (frac: number): { estSecondsRemaining?: number } => {
         const el = (Date.now() - etaStart) / 1000;
@@ -384,8 +380,7 @@ export const monitorCompetitors = task({
                 phase: "transcribing audio",
                 detail: `[${i + 1}/${fresh.length}] ${title} · 抖音音频转写中`,
               });
-              // List items carry no play URLs (and may omit duration) — always fetch the
-              // detail; it has fresh URLs plus the authoritative duration. Mirrors Clerk.
+              // List items carry no play URLs and may omit duration; the detail has both.
               const detail = await getDouyinVideoDetail(listItem.awemeId).catch((err: Error) => {
                 logger.warn(
                   `Douyin detail failed for ${listItem.awemeId}: ${err.message?.slice(0, 120)}`,
@@ -502,9 +497,8 @@ export const monitorCompetitors = task({
             phase: "classifying video",
             detail: `[${i + 1}/${fresh.length}] ${ref.title} · AI 分类中`,
           });
-          // Two-axis language: analysis follows the SOURCE language (forcing a zh read of an
-          // English video translates+distorts), while idea generation uses the user's target
-          // language. Detect per video from the transcript (fallback title).
+          // Analysis follows the SOURCE language — forcing a zh read of an English video
+          // translates and distorts it; idea generation uses the user's target language.
           const sourceLang = likelyChineseText(
             (finalTranscript && finalTranscript.trim()) || title,
           )
@@ -564,8 +558,6 @@ export const monitorCompetitors = task({
                 transcript: finalTranscript,
               });
             } else {
-              // Classifier said relevant but transcript is missing or too short;
-              // viral-trigger + idea gen need real content, so we can't proceed.
               skippedShortTranscript++;
               logger.warn(
                 `Video ${ref.videoId} ("${title}") marked relevant but transcript ${
@@ -587,9 +579,8 @@ export const monitorCompetitors = task({
         if (i < fresh.length - 1) await sleep(1500);
       }
 
-      // Recovery: pull DB rows that are relevant but never got ideas (prior
-      // run killed by MAX_DURATION_EXCEEDED before idea-gen). Scope to projectId
-      // (not channelId) so a sibling project's content isn't pulled in.
+      // Recovery for rows marked relevant that never got ideas (prior run killed by
+      // MAX_DURATION_EXCEEDED). Scoped to projectId so a sibling project isn't pulled in.
       const alreadyIdeated = await db
         .select({ id: museIdeas.sourceVideoId })
         .from(museIdeas)
@@ -618,12 +609,9 @@ export const monitorCompetitors = task({
       const inMemoryIds = new Set(relevantRows.map((r) => r.monitorVideoId));
       for (const o of orphans) {
         if (inMemoryIds.has(o.monitorVideoId)) continue;
-        // Use the same real-transcript gate as the main path (content type isn't
-        // persisted, so apply the stricter video floor) — don't feed 50-199 char
-        // garbage/partial ASR into idea generation.
         // No contentType column on this table: an [Audio Transcript] marker proves ASR ran
         // (video floor); otherwise the row may be an image post whose caption legitimately
-        // sits in the 50-199 char band — use the image floor so it isn't skipped forever.
+        // sits in the 50-199 char band — the image floor keeps it from being skipped forever.
         const floorType = o.transcript?.includes("[Audio Transcript]") ? "video" : "xhs_image";
         if (!o.transcript || !isRealTranscript(o.transcript, floorType)) continue;
         relevantRows.push({
@@ -663,7 +651,6 @@ export const monitorCompetitors = task({
             ...etaField(0.65 + (0.35 * i) / relevantRows.length),
           });
           try {
-            // Analysis follows the source language (faithful); ideas below use the target.
             const sourceLang = likelyChineseText(
               (row.transcript && row.transcript.trim()) || row.title,
             )
@@ -744,7 +731,7 @@ export const monitorCompetitors = task({
         );
       }
 
-      // Settle 解析额度 from the videos this run actually stamped (duration-weighted).
+      // Settle parse quota from the videos this run actually stamped (duration-weighted).
       if (payload.userId) {
         const processed = await db
           .select({ durationSec: museMonitorVideos.durationSec })

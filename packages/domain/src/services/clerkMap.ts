@@ -6,11 +6,9 @@ import { buildVideoMapSummaryPrompt } from "@goooose/prompts/clerk";
 // A valid summary is 300-550 words; anything this short is a flaky/empty/truncated generation.
 const MIN_SUMMARY_CHARS = 120;
 
-// MAP step of the SOP map-reduce: distill one video (transcript + structured analysis)
-// into a compact reusable-pattern summary. Flash is cheap for the per-video fan-out, but
-// it occasionally returns empty/truncated text — on a thin flash result, retry once on Pro
-// before giving up so the caller's structured-field fallback only fires on a genuine double
-// failure. The summary is cached on the row, so the Pro retry is at most once per video.
+// MAP step of the SOP map-reduce. Flash carries the per-video fan-out but intermittently
+// returns empty/truncated text; the summary is cached on the row, so the Pro retry costs
+// at most once per video.
 export async function summarizeVideoForSop(args: {
   title: string;
   views: number | null;

@@ -2,9 +2,8 @@ import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } fro
 
 import { users } from "./users";
 
-// period = 'YYYY-MM' (Asia/Shanghai). Single minutes pool per month; bonus_minutes
-// comes from redemption codes and expires with the period (row) itself.
-// contents_used/generations_used are dormant leftovers from the pre-minutes model.
+// period = 'YYYY-MM' (Asia/Shanghai); bonus_minutes comes from redemption codes and expires with
+// the row. contents_used/generations_used are dormant leftovers from the pre-minutes model.
 export const usageCounters = pgTable(
   "usage_counters",
   {
@@ -23,7 +22,7 @@ export const usageCounters = pgTable(
   }),
 );
 
-// access: beta invite — redeeming flips users.accessStatus to approved (may combine with minutes).
+// access: redeeming flips users.accessStatus to approved (may combine with minutes).
 export type CodeGrant = { minutes?: number; access?: boolean };
 
 export const redemptionCodes = pgTable("redemption_codes", {
@@ -54,7 +53,6 @@ export const codeRedemptions = pgTable(
   }),
 );
 
-// Audit trail for every bonus change (code redemption or manual admin action).
 export const quotaAdjustments = pgTable("quota_adjustments", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
@@ -71,8 +69,7 @@ export const quotaAdjustments = pgTable("quota_adjustments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// One row per completed Logto sign-in (callback route) — admin 用户详情 needs
-// login count + IP history.
+// One row per completed Logto sign-in (callback route); admin user detail reads count + IP history.
 export const loginEvents = pgTable(
   "login_events",
   {

@@ -10,8 +10,7 @@ import { sendApprovalEmail } from "@/lib/email";
 
 export const BETA_CODE_COOKIE = "goooose_beta_code";
 
-// Per-IP sliding window for the public validate endpoint. Per-instance memory is
-// enough to stop script spam; the 31^8 code space makes enumeration pointless anyway.
+// Per-IP sliding window; per-instance memory suffices — the 31^8 code space makes enumeration pointless.
 const hits = new Map<string, number[]>();
 
 export function rateLimitOk(key: string, limit = 10, windowMs = 600_000): boolean {
@@ -56,8 +55,7 @@ export type RedeemAccessResult = {
   alreadyRedeemed?: boolean;
 };
 
-// Same lock + idempotency skeleton as access.redeem (trpc/access.ts), but callable
-// by pending users: flips accessStatus to approved and optionally grants minutes.
+// Same lock + idempotency as access.redeem (trpc/access.ts) but callable by pending users.
 export async function redeemAccessCode(
   user: { id: string; accessStatus: string; email: string | null },
   rawCode: string,
@@ -97,7 +95,7 @@ export async function redeemAccessCode(
       .onConflictDoNothing()
       .returning();
     if (inserted.length === 0) {
-      // Same user, same code, second time (e.g. login retry) — idempotent no-op.
+      // Same user, same code again (login retry) — idempotent, don't burn a use.
       return { approved: user.accessStatus === "approved", minutesGranted: 0, alreadyRedeemed: true };
     }
     await tx

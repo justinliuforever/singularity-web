@@ -5,10 +5,8 @@ import postgres from "postgres";
 import { pipelineRuns } from "../schema";
 import { refundRunQuota } from "./quota";
 
-// Owns the three pieces of run-lifecycle boilerplate that must never drift
-// between Trigger tasks: client creation, the failed-status write (losing
-// errorMessage means invisible failures), and closing the connection. Tasks
-// keep their own running/done updates — those legitimately vary.
+// The failed-status write must never drift between Trigger tasks — a lost errorMessage
+// is an invisible failure.
 export async function withRunDb<T>(
   runId: string,
   fn: (db: PostgresJsDatabase) => Promise<T>,
@@ -24,7 +22,6 @@ export async function withRunDb<T>(
         .update(pipelineRuns)
         .set({ status: "failed", errorMessage: message, completedAt: new Date() })
         .where(eq(pipelineRuns.id, runId));
-      // Failed run produced no artifact — give the charged minutes back (exactly once).
       await refundRunQuota(db, runId);
     } catch {
       /* the original error matters more than the bookkeeping write */

@@ -78,16 +78,14 @@ const MODE_OPTIONS: Array<{ value: Mode; label: string; hint: string }> = [
   { value: "incremental", label: "仅新视频", hint: "跳过已经分析过的视频" },
 ];
 
-// Mirror the worker's id extraction (xhs.ts / analyze-channel.ts) so a paste that can't
-// resolve to a note/video id is caught before the run — including share-card text blobs
-// where the URL is wrapped in title/emoji.
+// Must mirror the worker's id extraction (xhs.ts / analyze-channel.ts), including share-card
+// blobs where the URL is wrapped in title/emoji, or a doomed paste starts a run.
 function lineResolvesToId(line: string, platform: "youtube" | "xhs" | "douyin"): boolean {
   if (platform === "xhs") {
     return (
       /^[a-f0-9]{16,32}$/i.test(line) ||
       /(?:explore|discovery\/item)\/[a-f0-9]{16,32}/i.test(line) ||
-      // Mobile share short links can't be resolved in the browser; the worker
-      // expands the redirect server-side.
+      // Mobile share short links only resolve server-side.
       /https?:\/\/(?:[\w-]+\.)?xhslink\.com\//i.test(line)
     );
   }
@@ -95,7 +93,7 @@ function lineResolvesToId(line: string, platform: "youtube" | "xhs" | "douyin"):
     return (
       /\/video\/\d{15,21}/.test(line) ||
       /iesdouyin\.com\/share\/video\/\d+/i.test(line) ||
-      // Mobile share short links resolve server-side.
+      // Mobile share short links only resolve server-side.
       /https?:\/\/v\.douyin\.com\/[A-Za-z0-9_-]+/i.test(line) ||
       /^\d{19}$/.test(line)
     );
@@ -202,7 +200,6 @@ export function ClerkStartSheet({
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
-          {/* Context confirm bar (HCI 防错): restate WHO is being analyzed before launch. */}
           <div
             className={`rounded-md border p-2.5 text-xs ${
               target.kind === "competitor"

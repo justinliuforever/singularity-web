@@ -24,9 +24,8 @@ export const ideasResponseSchema = z.object({
 
 export type Idea = z.infer<typeof ideaSchema>;
 
-// Fabrication guard: viral_trigger must not run on empty/fake transcripts.
-// Image-post "transcripts" (XHS/Douyin) are title+desc (real authored, ~80-300
-// chars), so the lower 50-char floor still catches empty posts.
+// Fabrication guard: viral_trigger must not run on empty/fake transcripts. Image-post
+// "transcripts" are title+desc (~80-300 chars), so the lower floor still catches empty posts.
 export const MIN_REAL_TRANSCRIPT_CHARS = 200;
 export const MIN_REAL_TRANSCRIPT_CHARS_IMAGE_POST = 50;
 

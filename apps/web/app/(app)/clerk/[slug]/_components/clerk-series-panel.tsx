@@ -68,8 +68,7 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
     onError: (err) => toast.error(err.message),
   });
 
-  // The only production run took 166s; the old fixed 90s timer revealed an empty panel and
-  // left the user to guess. Follow the run instead, and refresh on the falling edge.
+  // Follow the run, not a fixed timer — a real detect took 166s, outlasting any guess.
   const activeQuery = trpc.pipeline.listActiveAll.useQuery(undefined, {
     refetchInterval: (q) =>
       (q.state.data ?? []).some((r) => r.command === "clerk-detect-channel-series") ? 5_000 : false,
@@ -91,9 +90,8 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
     onSuccess: () => {
       toast.success("已针对该系列触发 Clerk 分析");
       setOpenSeries(null);
-      // Re-render the page so getActiveAgentRun picks up this run and ClerkRunButton
-      // takes over progress tracking + completion refresh — otherwise the run is
-      // untracked and results only appear after a manual reload.
+      // Hands the run to ClerkRunButton via getActiveAgentRun; without it nothing tracks
+      // this run and results only appear after a manual reload.
       router.refresh();
     },
     onError: (err) => toast.error(err.message),

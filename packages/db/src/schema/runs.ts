@@ -14,8 +14,8 @@ export const pipelineRuns = pgTable(
   "pipeline_runs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Exactly-one-owner (0018): clerk runs may target a competitor instead of a channel;
-    // muse/poet runs always carry channel_id. CHECK pipeline_runs_one_owner enforces it.
+    // CHECK pipeline_runs_one_owner: clerk runs may target a competitor instead of a channel,
+    // muse/poet runs always carry channel_id.
     channelId: uuid("channel_id").references(() => channels.id, { onDelete: "cascade" }),
     competitorAccountId: uuid("competitor_account_id").references(() => competitorAccounts.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
@@ -39,7 +39,7 @@ export const pipelineRuns = pgTable(
     competitorStatusIdx: index("pipeline_runs_competitor_status_idx")
       .on(table.competitorAccountId, table.status)
       .where(sql`${table.competitorAccountId} is not null`),
-    // Admin ops monitor filters by status + orders by started_at across all users.
+    // Admin ops monitor filters by status and orders by started_at across all users.
     statusStartedIdx: index("pipeline_runs_status_started_idx").on(table.status, table.startedAt),
   })
 );

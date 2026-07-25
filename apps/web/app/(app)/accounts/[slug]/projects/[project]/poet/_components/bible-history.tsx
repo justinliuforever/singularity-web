@@ -19,8 +19,8 @@ type Props = {
   bibles: PoetBible[];
 };
 
-// activateBible rejects a bible with open flags; the sibling review card enforces this
-// but this button did not, so the only feedback was a server error.
+// activateBible rejects a bible with open flags; gate here too, or the only feedback is a
+// server error.
 function unresolvedFlags(b: PoetBible): number {
   return (b.importFlags ?? []).filter((f) => !f.resolved).length;
 }
@@ -54,9 +54,8 @@ export function BibleHistory({ bibles }: Props) {
 
   if (bibles.length === 0) return null;
   const hasActive = bibles.some((b) => b.isActive);
-  // Active version first, then most-recent (page already sorts by updatedAt desc).
+  // Stable sort keeps the page's updatedAt-desc order within each group.
   const ordered = [...bibles].sort((a, b) => Number(b.isActive) - Number(a.isActive));
-  // Open when the user must pick (no active version) or can switch (multiple versions).
   const defaultOpen = !hasActive || bibles.length > 1;
 
   return (

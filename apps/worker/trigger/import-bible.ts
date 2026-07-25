@@ -128,7 +128,6 @@ export const importBible = task({
         importFileId: file.id,
         importFlags: flags,
         driftWarning: bible.driftWarning,
-        // Flagged imports wait for field-by-field user review before they can be activated.
         blockActivation: flags.length > 0,
       });
 

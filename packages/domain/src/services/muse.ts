@@ -16,9 +16,6 @@ import {
 
 const TRANSCRIPT_PREVIEW_CHARS = 2000;
 
-// DeepSeek V4 Pro reasoning preamble sometimes emits trailing commas or
-// unescaped " inside Chinese values — jsonrepair recovers without losing data.
-
 export type ClassifyArgs = {
   channelDescription: string;
   title: string;
@@ -71,8 +68,6 @@ export type ViralTriggerArgs = {
 
 export async function analyzeViralTrigger(args: ViralTriggerArgs): Promise<string> {
   const prompt = buildViralTriggerPrompt(args);
-  // Pro-first, auto-downgrade to Flash on empty (reasoning can burn the budget and
-  // return nothing) so a relevant video never silently loses its trigger analysis.
   const result = await generateTextWithFallback({
     prompt,
     temperature: 0.4,
@@ -114,9 +109,7 @@ export async function generateIdeas(args: GenerateIdeasArgs): Promise<GenerateId
     transcript: args.transcript,
   });
 
-  // Pro-first with Flash fallback on empty; 8192 budget keeps 6 fields × N ideas
-  // concrete. Drop blank/half-truncated ideas (missing story_angle or facts) so a
-  // partial response isn't saved as success — retry once if we're short of numIdeas.
+  // Blank/half-truncated ideas are dropped so a partial response isn't saved as success.
   let lastText = "";
   let lastIssues = "";
   for (let attempt = 0; attempt < 2; attempt++) {

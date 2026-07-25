@@ -18,7 +18,6 @@ import { humanizeChinese } from "./humanizer";
 const MAX_REFERENCE_CHARS = 24000;
 const MAX_SECTION_REFERENCE_CHARS = 10000;
 const PREV_TAIL_CHARS = 400;
-// Single overshoot window for both paths and both languages.
 const OVERSHOOT_LIMIT = 1.2;
 
 export type ScriptReference = {
@@ -66,7 +65,6 @@ export function formatVerbatimFacts(
   verbatimFacts: string | null | undefined,
   factChecks?: CheckedFact[] | null,
 ): string {
-  // Flagged atoms carry an inline caution the writer must heed.
   const flagged = (factChecks ?? []).filter((f) => f.status !== "verified");
   if (flagged.length > 0) {
     return (factChecks ?? [])
@@ -155,7 +153,6 @@ function normalizeOutline(parsed: unknown, fallbackTargetCount: number, targetTo
     });
   }
   if (sections.length === 0) return null;
-  // Scale section budgets toward the requested total in BOTH directions.
   const sum = sections.reduce((a, s) => a + s.target_count, 0);
   if (sum > 0 && (sum < targetTotal * 0.8 || sum > targetTotal * OVERSHOOT_LIMIT)) {
     const scale = targetTotal / sum;
@@ -324,7 +321,7 @@ async function writeScriptLong(
 
   let scriptText = scriptParts.join("\n\n");
   let wordCount = countWords(scriptText, language);
-  // Long-form sometimes under-delivers per section; deepen once, the gate trims overshoot.
+  // Sections routinely under-deliver; deepen once, the gate trims any overshoot.
   if (wordCount < targetWordCount * 0.8) {
     const grown = await expandToBudget(scriptText, wordCount, {
       language,
@@ -337,7 +334,6 @@ async function writeScriptLong(
   return { scriptText, wordCount };
 }
 
-// Deepen existing sections toward the window; accepts only growth.
 async function expandToBudget(
   scriptText: string,
   wordCount: number,
@@ -397,9 +393,8 @@ export async function writeScript(
     result = { ...short, path: "short" };
   }
 
-  // Brand wrapper stays a soft prompt guideline; post-hoc Bible-quote injection was removed (it forced irrelevant lines into the hook).
+  // No post-hoc Bible-quote injection: it forced irrelevant lines into the hook.
 
-  // Grounding (script mode: generalize, no tags — read aloud). Bible counts as source.
   const source = [
     args.bibleText,
     args.groundingSource ?? "",
@@ -418,8 +413,7 @@ export async function writeScript(
     result = { ...result, scriptText: grounded, wordCount: countWords(grounded, args.language) };
   }
 
-  // De-AI every zh script — long-form (10min+) needs it most. enforceBudget still runs
-  // AFTER this, so the length window is restored even when humanize inflates the text.
+  // enforceBudget must stay AFTER this: humanizing can inflate the text past the window.
   let humanized = false;
   if (args.language === "zh") {
     await hooks.onHumanizeStart?.();
@@ -457,7 +451,6 @@ export function scrubForeignSelfIntro(scriptText: string, args: Pick<WriteScript
   return scriptText.replace(pattern, (full, name: string) => {
     if (!name || name === channelName) return full;
     if (channelName && channelName.includes(name)) return full;
-    // Bible-declared host of THIS account (imported persona) is not a leak.
     if (hostName && (name === hostName || hostName.includes(name))) return full;
     // Only a name that exists in the analyzed sources is a persona leak.
     if (!sources.includes(name)) return full;
@@ -466,7 +459,6 @@ export function scrubForeignSelfIntro(scriptText: string, args: Pick<WriteScript
   });
 }
 
-// Symmetric gate: compress past the ceiling, expand below the floor.
 async function enforceBudget(
   result: ScriptResult & { path: "short" | "long" },
   args: Pick<WriteScriptArgs, "language" | "targetWordCount"> & { referencesContext: string },
@@ -477,8 +469,7 @@ async function enforceBudget(
   }
   if (result.wordCount < args.targetWordCount * 0.8) {
     const grown = await expandToBudget(result.scriptText, result.wordCount, args);
-    // Expansion may overshoot — bounce through compress, then keep whichever lands closest
-    // (compress accepts anything ≥0.5x, so the squeezed side can undershoot badly).
+    // Compress accepts anything ≥0.5x, so it can undershoot badly — keep whichever lands closest.
     if (grown.wordCount > args.targetWordCount * OVERSHOOT_LIMIT) {
       const squeezed = await compressToBudget(grown.scriptText, grown.wordCount, args);
       const best =
@@ -517,7 +508,7 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
   const result = await generateText({
     model: llm("pro"),
     prompt,
-    temperature: 0.5, // Match long-form + archive; the writer stage needs expressive range.
+    temperature: 0.5,
     // Reasoning tokens draw from this budget too.
     maxOutputTokens: 16384,
     maxRetries: 2,
@@ -529,7 +520,6 @@ export async function writeScriptShort(args: WriteScriptArgs): Promise<ScriptRes
   return { scriptText, wordCount };
 }
 
-// Keeps the shortest valid version even when it misses the window.
 async function compressToBudget(
   scriptText: string,
   wordCount: number,

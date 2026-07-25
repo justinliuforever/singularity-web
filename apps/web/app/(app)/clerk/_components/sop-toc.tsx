@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 
 export type TocItem = { id: string; title: string };
 
-// Sticky section rail for the SOP reader: scroll-spy highlights the section in view,
-// clicks smooth-scroll to it. Desktop = vertical rail beside the doc; mobile = a
-// horizontal scroller pinned above it.
 export function SopToc({ items }: { items: TocItem[] }) {
   const [active, setActive] = useState(items[0]?.id ?? "");
 
@@ -16,8 +13,8 @@ export function SopToc({ items }: { items: TocItem[] }) {
       .filter((el): el is HTMLElement => el !== null);
     if (headings.length === 0) return;
 
-    // A heading counts as "current" once its top passes the upper third of the
-    // viewport; track the last one to cross so fast scrolls don't leave it blank.
+    // rootMargin marks a heading current at the upper third; taking the last crossing
+    // entry keeps fast scrolls from blanking the rail.
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {

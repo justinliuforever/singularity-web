@@ -14,10 +14,8 @@ import { BETA_CODE_COOKIE, redeemAccessCode } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
 
 export async function GET(request: NextRequest) {
-  // A route handler throw is a bare 500 with no body — error.tsx cannot cover it. Logto
-  // clears the sign-in session on success, so a reload or browser Back replays a spent
-  // code and fails deterministically; without this it is a white screen the user can only
-  // escape by retyping the domain.
+  // A route handler throw is a bare 500 error.tsx cannot cover; a reload or Back replays a
+  // spent code (Logto clears the sign-in session on success) and would white-screen the user.
   try {
     await handleSignIn(logtoConfig, request.nextUrl.searchParams);
   } catch (err) {
@@ -26,8 +24,7 @@ export async function GET(request: NextRequest) {
       isAuthenticated: false,
     }));
     console.error("sign-in callback failed", err);
-    // Catching it here removed it from onRequestError, and login failures were the whole
-    // content of error_events — without this a login regression becomes invisible again.
+    // Catching here hides it from onRequestError, so a login regression would be invisible.
     await logServerError({
       message: (err as Error)?.message ?? String(err),
       stack: (err as Error)?.stack ?? null,
@@ -37,8 +34,7 @@ export async function GET(request: NextRequest) {
     });
     redirect(isAuthenticated ? "/" : "/sign-in-failed?reason=expired");
   }
-  // One row per completed sign-in — feeds the admin user-detail view. Never
-  // block the login redirect on bookkeeping.
+  // Never block the login redirect on bookkeeping.
   let user = null;
   try {
     user = await ensureCurrentUser();
@@ -56,9 +52,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("login event bookkeeping failed", err);
   }
-  // Landing stashed a validated invite code before pushing through Logto; redeem
-  // now and always drop the cookie so a bad code can't loop. Failures fall through
-  // to the /request-access code box.
+  // Landing stashed the invite code before Logto; always drop the cookie so a bad code can't loop.
   const betaCode = request.cookies.get(BETA_CODE_COOKIE)?.value;
   let codeFailed = false;
   if (betaCode) {

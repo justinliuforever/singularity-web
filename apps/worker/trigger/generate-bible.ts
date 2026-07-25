@@ -42,7 +42,6 @@ export const generateBible = task({
         .returning({ id: pipelineRuns.id });
       if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
-      // Auto-derive description from channel name + sample video titles if empty.
       let resolvedDescription = channel.description?.trim() ?? "";
       if (!resolvedDescription) {
         const sampleVideos = await db

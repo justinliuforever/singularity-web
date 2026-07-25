@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-// Account-level 频道圣经 indicator — read-only everywhere except the account bible page.
 export function BibleChip({
   name,
   manageHref,
@@ -10,7 +9,7 @@ export function BibleChip({
 }: {
   name: string | null;
   manageHref: string;
-  // A parked bible is neither live nor absent. Reading 未设置 over a finished import is what
+  // A parked bible is neither live nor absent: showing 未设置 over a finished import
   // made a successful generation look like it never ran.
   parkedCount?: number;
   parkedUnresolvedCount?: number;

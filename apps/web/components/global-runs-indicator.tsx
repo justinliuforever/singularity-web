@@ -66,8 +66,8 @@ function GlobalRunsIndicatorInner() {
     return () => clearInterval(t);
   }, []);
 
-  // Hand-rolled popover (no portal, no menu semantics): plain conditional div with
-  // outside-click + Escape dismissal — nothing here can take down the page.
+  // Hand-rolled popover rather than the menu primitives: no portal, nothing that can
+  // throw and take the header down.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -84,16 +84,16 @@ function GlobalRunsIndicatorInner() {
     };
   }, [open]);
 
-  // Idle sessions were the bulk of all traffic: poll fast only while something is running,
-  // and keep a slow tick so a run started elsewhere still surfaces without a focus event.
+  // Idle sessions were the bulk of all traffic, hence fast polling only while something
+  // runs; the slow tick still surfaces a run started in another tab.
   const listQuery = trpc.pipeline.listActiveAll.useQuery(undefined, {
     refetchInterval: (q) => (q.state.data?.length ? 8_000 : 60_000),
     refetchOnWindowFocus: true,
   });
   const runs: RunRow[] = listQuery.data ?? [];
 
-  // Cross-page finish notification: when a previously-seen run id leaves the active set,
-  // surface a toast with a deep link. Skip the first load (no baseline to diff against).
+  // A run that leaves the active set has finished; the first load has no baseline to
+  // diff against and must not toast.
   const prevRef = useRef<Map<string, RunRow> | null>(null);
   useEffect(() => {
     if (!listQuery.data) return;
@@ -130,7 +130,7 @@ function GlobalRunsIndicatorInner() {
         onClick={() => setOpen((o) => !o)}
       >
         <Loader2 className="size-3.5 animate-spin text-amber-600" />
-        {/* Keyed remount pops the count on every change — peripheral cue that a run started/finished. */}
+        {/* key on the count forces a remount so the number pops on every change. */}
         <motion.span
           key={runs.length}
           initial={{ scale: 0.5, opacity: 0.4 }}
@@ -199,8 +199,7 @@ function GlobalRunsIndicatorInner() {
   );
 }
 
-// A status indicator must never be able to take the page down with it: any render
-// error inside collapses to "no indicator" instead of the route error screen.
+// A render error here must collapse to "no indicator", never to the route error screen.
 class IndicatorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {

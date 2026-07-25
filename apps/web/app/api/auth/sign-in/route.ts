@@ -5,9 +5,8 @@ import { logtoConfig } from "@/lib/logto";
 
 export async function GET(request: NextRequest) {
   // Minting overwrites Logto's single cookie slot, so a background request landing here
-  // invalidates the state the user's real tab will return with. Guarded here, not in
-  // proxy.ts, whose matcher excludes /api/* — api/douyin-cover redirects here from an
-  // <Image src>.
+  // invalidates the state the user's real tab returns with. Can't live in proxy.ts — its
+  // matcher excludes /api/*, and api/douyin-cover redirects here from an <Image src>.
   const dest = request.headers.get("sec-fetch-dest");
   if (request.headers.get("rsc") === "1" || (dest && dest !== "document")) {
     return new Response(null, { status: 401 });

@@ -8,9 +8,8 @@ import { channels, projects, type Channel, type Project } from "@goooose/db";
 import { db } from "./db";
 import { ensureCurrentUser } from "./users";
 
-// Single source of truth for slug → owned resource resolution in RSC pages. Slugs are
-// only unique per (user_id, slug), so every lookup MUST scope by the current user — doing
-// it here means a new page physically cannot reintroduce the cross-user 404 bug.
+// Slugs are unique only per (user_id, slug), so every lookup must scope by the current
+// user; resolving centrally keeps a new page from reintroducing the cross-user bug.
 export async function resolveOwnedChannel(
   slug: string,
 ): Promise<{ user: NonNullable<Awaited<ReturnType<typeof ensureCurrentUser>>>; channel: Channel }> {

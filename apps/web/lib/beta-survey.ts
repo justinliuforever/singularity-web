@@ -1,11 +1,10 @@
-// Beta survey question set (题目设计方案 v2) — shared by the /apply stepper and the
-// admin queue. The server never validates answers against this set, so readers must
-// tolerate unknown keys. Editing questions: bump SURVEY_VERSION, never the DB.
+// The server never validates answers against this set, so readers must tolerate unknown
+// keys; when editing questions bump SURVEY_VERSION and leave stored rows alone.
 
 export const SURVEY_VERSION = 2;
 
-// Zod's own email pattern. Shared with the server schema — a looser gate here would
-// wave through what the server rejects.
+// Must stay identical to the server schema's Zod email pattern — a looser gate here
+// waves through what the server then rejects.
 export const EMAIL_RE =
   /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
 
@@ -15,12 +14,11 @@ export type SurveyQuestion = {
   title: string;
   hint?: string;
   options: string[];
-  // Renders an "其他（请注明）" choice with an inline input, stored as `${id}_other`.
+  // Free-text answer is stored under `${id}_other`, not under `id`.
   allowOther?: boolean;
   required?: boolean;
-  // Multi only: hard cap on selections.
   maxSelect?: number;
-  // Multi only: picking this option clears the rest (and vice versa).
+  // Multi only: picking this option clears the rest, and picking any other clears it.
   exclusiveOption?: string;
 };
 
@@ -99,7 +97,6 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
   },
 ];
 
-// Admin list shows these inline; the rest appear in the expanded view.
 export const SUMMARY_QUESTION_IDS = ["role", "ai_hours", "commitment"];
 
 export const OTHER_OPTION = "其他（请注明）";

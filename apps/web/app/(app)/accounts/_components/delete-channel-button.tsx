@@ -21,7 +21,6 @@ import { trpc } from "@/lib/trpc";
 type Props = {
   id: string;
   name: string;
-  // Set when the button lives on the account's own page — after delete the page is gone.
   redirectTo?: string;
 };
 

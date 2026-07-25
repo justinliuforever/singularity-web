@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 
-// Draw-on checkmark for completion moments (toast success icon, run panels).
 export function SuccessCheck({ className }: { className?: string }) {
   return (
     <motion.svg

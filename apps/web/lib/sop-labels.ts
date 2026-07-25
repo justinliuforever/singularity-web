@@ -1,5 +1,3 @@
-// Single source for SOP type labels/ordering — shared by the Clerk landing preview, SOP cards,
-// the SOP library, and poet references so no surface leaks the raw enum.
 export const SOP_LABEL: Record<string, string> = {
   human: "写稿打法",
   hottest: "爆款拆解",

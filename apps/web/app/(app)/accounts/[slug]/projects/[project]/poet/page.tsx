@@ -86,8 +86,8 @@ export default async function PoetChannelPage({ params }: Props) {
     ]);
 
   const activeBible = activeBibleRow[0] ?? null;
-  // Must mirror what the writer resolves (project-bound SOP — incl. a competitor's — or the
-  // own-channel ai_reference fallback); checking only own ai_reference warns "no SOP" falsely.
+  // Must mirror the writer's own resolution (a bound competitor SOP counts); checking only
+  // the own-channel ai_reference warns "no SOP" falsely.
   const hasAiReferenceSop = primarySop != null;
 
   return (

@@ -21,10 +21,9 @@ export async function getActiveAgentRun(
   owner: string | AgentRunOwner,
   userId: string,
   agent: "clerk" | "muse" | "poet",
-  // Command filter — clerk has two commands; the channel panel must not reattach to a single-video run.
+  // clerk has two commands; the channel panel must not reattach to a single-video run.
   command?: string,
-  // Scopes a project page to its own runs. Bible runs carry no projectId and belong to the
-  // account, so they stay visible — a strict equality would hide them from the Poet page.
+  // Bible runs carry no projectId, so strict equality would hide them from the Poet page.
   projectId?: string,
 ): Promise<ActiveAgentRun | null> {
   const ownerObj: AgentRunOwner = typeof owner === "string" ? { channelId: owner } : owner;
@@ -52,8 +51,8 @@ export async function getActiveAgentRun(
           ? [or(eq(pipelineRuns.projectId, projectId), isNull(pipelineRuns.projectId))!]
           : []),
         inArray(pipelineRuns.status, ["pending", "running"]),
-        // Same 30-min orphan cutoff as assertNoActiveRun: stale pending rows
-        // (failed/expired trigger, seeded row) must not show as active forever.
+        // Must match assertNoActiveRun's 30-min orphan cutoff, or stale pending rows
+        // (failed trigger, seeded row) show as active forever.
         or(
           eq(pipelineRuns.status, "running"),
           gte(pipelineRuns.startedAt, new Date(Date.now() - 30 * 60 * 1000)),

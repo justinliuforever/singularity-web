@@ -2,7 +2,6 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-cor
 
 import { users } from "./users";
 
-// Application-level server error capture — own-DB observability, no external provider.
 // Fed by the Next.js instrumentation onRequestError hook; surfaced in the admin ops tab.
 export const errorEvents = pgTable(
   "error_events",

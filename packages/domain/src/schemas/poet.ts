@@ -1,14 +1,10 @@
-// Poet length thresholds + drift telemetry shapes.
-
 export const ZH_CHARS_PER_MINUTE = 200;
 export const EN_WORDS_PER_MINUTE = 150;
 
-// Custom-duration bounds (integer seconds). 15s floor — shorter has no script to
-// speak of; 1h ceiling matches the longest long-form we generate. Short videos
-// (≤60s) need sub-minute spans, which is why duration is tracked in seconds.
+// Seconds, not minutes: short videos (≤60s) need sub-minute spans.
 export const MIN_DURATION_SECONDS = 15;
 export const MAX_DURATION_SECONDS = 3600;
-export const DEFAULT_DURATION_SECONDS = 300; // 5 min — short-form path
+export const DEFAULT_DURATION_SECONDS = 300;
 
 export const LONG_FORM_THRESHOLD = {
   zh: 2000,
@@ -38,9 +34,8 @@ export function isLongForm(targetWordCount: number, language: "zh" | "en"): bool
   return targetWordCount >= LONG_FORM_THRESHOLD[language];
 }
 
-// Length budget is a spoken-duration promise. Section markers ([HOOK], [ITEM 1], [CLOSE]…) and
-// markdown emphasis aren't spoken, so they must not count toward it — leaving them in inflated
-// short scripts past the gate ceiling and padded long scripts up toward the floor.
+// Section markers and markdown emphasis aren't spoken, so they must not count toward a
+// budget that is a spoken-duration promise.
 export function countWords(text: string, language: "zh" | "en"): number {
   const spoken = (text ?? "").replace(/\[[A-Z][A-Z0-9 ]*\]/g, "").replace(/\*\*/g, "");
   return language === "zh"

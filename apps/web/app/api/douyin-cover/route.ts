@@ -13,13 +13,12 @@ import { ensureCurrentUser } from "@/lib/users";
 const AWEME_ID = /^\d{15,21}$/;
 const usageSink = createUsageSink(db);
 
-// Douyin cover CDN URLs are signed with an ~2 week x-expires, so a baked-in thumbnail_url
-// 403s after expiry. Re-resolve the fresh cover at view time by aweme_id (approved-gated,
-// metered, per-user rate-limited since it spends the shared TikHub key).
+// Douyin cover CDN URLs are signed with an ~2 week x-expires, so a stored thumbnail_url
+// 403s after expiry — re-resolve by aweme_id at view time.
 const CACHE_TTL_MS = 60 * 60_000;
 const coverCache = new Map<string, { url: string; exp: number }>();
-// Re-resolve only inside the last day of the signature's life; before that the stored URL
-// still works and calling TikHub for it is a purchase with nothing to show for it.
+// Only inside the last day of the signature's life; earlier, the stored URL still works and
+// a TikHub call buys nothing.
 const RESIGN_MARGIN_MS = 24 * 60 * 60_000;
 
 function freshUntil(url: string): number {

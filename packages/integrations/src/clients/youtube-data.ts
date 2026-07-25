@@ -151,7 +151,7 @@ export function fetchChannelMetaById(channelId: string): Promise<YoutubeChannelM
   return fetchChannelMetaRaw({ id: channelId });
 }
 
-// `@handle` form (with or without the leading @). 1 quota unit.
+// 1 quota unit; accepts the handle with or without the leading @.
 export function fetchChannelMetaByHandle(
   handle: string,
 ): Promise<YoutubeChannelMeta | null> {
@@ -177,7 +177,7 @@ export function parseYoutubeChannelUrl(
   }
 }
 
-// Single-video fetch (1 quota unit). Returns null on any failure so callers can fall back.
+// 1 quota unit; null on any failure so callers can fall back.
 export async function fetchVideoMetadata(videoId: string): Promise<YoutubeVideoMeta | null> {
   try {
     const url = `${BASE}/videos?part=snippet,contentDetails,statistics&id=${encodeURIComponent(videoId)}&key=${key()}`;
@@ -192,10 +192,9 @@ export async function fetchVideoMetadata(videoId: string): Promise<YoutubeVideoM
   }
 }
 
-// Channel uploads via the Data API (no proxy): channels.list → playlistItems.list →
-// videos.list, ~3 quota units. Newest-first, Shorts (≤60s) filtered to mirror the
-// yt-dlp /videos-tab behavior. Returns null when the URL/key can't serve it so the
-// caller keeps its original error.
+// No proxy: channels.list → playlistItems.list → videos.list, ~3 quota units. Shorts (≤60s) are
+// filtered to mirror the yt-dlp /videos-tab behavior. Null when the URL/key can't serve it, so
+// the caller keeps its original error.
 export async function listChannelUploads(
   channelUrl: string,
   limit: number,
@@ -237,7 +236,7 @@ export async function listChannelUploads(
   }
 }
 
-// Batched fetch (still 1 unit per video, but a single HTTP round-trip for up to 50).
+// Still 1 quota unit per video, but a single round-trip per batch.
 export async function fetchVideoMetadataBatch(
   videoIds: string[],
 ): Promise<Map<string, YoutubeVideoMeta>> {
@@ -255,7 +254,6 @@ export async function fetchVideoMetadataBatch(
         result.set(item.id, mapItem(item));
       }
     } catch {
-      /* skip this batch */
     }
   }
   return result;

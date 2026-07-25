@@ -2,7 +2,7 @@ import { index, integer, numeric, pgTable, real, text, timestamp, uuid } from "d
 
 import { users } from "./users";
 
-// Append-only raw cost telemetry (never shown to users; quotas live on counters).
+// Append-only cost telemetry, never shown to users; quotas live on usage_counters.
 export const usageEvents = pgTable(
   "usage_events",
   {

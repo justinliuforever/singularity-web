@@ -17,29 +17,25 @@ const BIAS_MARKERS = [
 ] as const;
 
 const STOPWORDS = new Set([
-  // English
   "a", "an", "the", "and", "or", "but", "of", "for", "to", "from", "in",
   "on", "at", "with", "by", "is", "are", "was", "were", "be", "been",
   "being", "this", "that", "these", "those", "it", "its", "as", "i", "we",
   "you", "he", "she", "they", "my", "your", "his", "her", "their", "our",
   "channel", "video", "videos", "content", "audience", "viewer", "viewers",
   "topic", "topics", "idea", "ideas", "youtube",
-  // Mandarin
   "的", "和", "与", "是", "在", "我", "你", "他", "她", "们", "也", "都",
   "了", "就", "把", "从", "到", "对", "为", "频道", "视频", "内容",
 ]);
 
-// Single CJK chars too common to signal topic overlap on their own — bigrams
-// containing them are skipped so "的日"/"了一" style noise can't mask real drift.
+// Bigrams containing these are skipped so "的日"/"了一" noise can't mask real drift.
 const ZH_CHAR_STOP = new Set([
   "的", "和", "与", "是", "在", "我", "你", "他", "她", "们", "也", "都",
   "了", "就", "把", "从", "到", "对", "为", "一", "个", "这", "那", "有",
 ]);
 
 function tokenize(text: string): Set<string> {
-  // CJK runs have no word boundaries: whole-run tokens would require exact phrase
-  // equality between user input and claimed topic, flagging no_overlap for nearly
-  // every zh bible. Compare character bigrams for CJK, word tokens for latin.
+  // CJK bigrams, not whole runs: a whole-run token needs exact phrase equality between
+  // input and claimed topic, which flagged no_overlap on nearly every zh bible.
   const out = new Set<string>();
   const tokens = text.toLowerCase().match(/[a-z0-9_]+|[一-鿿]+/g) ?? [];
   for (const t of tokens) {
@@ -82,8 +78,7 @@ export const BIBLE_ANCHORS = [
 
 export type BibleAnchor = (typeof BIBLE_ANCHORS)[number];
 
-// Per-consumer section selection. Legacy bibles (no anchors) fall back to the whole
-// content so pre-R6 rows keep exactly their current behavior.
+// Legacy bibles (no anchors) fall back to the whole content, keeping pre-R6 behavior.
 export function selectBibleSections(content: string, anchors: readonly BibleAnchor[]): string {
   const hasAnyAnchor = BIBLE_ANCHORS.some((a) => new RegExp(`^##\\s+${a}\\b`, "m").test(content));
   if (!hasAnyAnchor) return content;
@@ -202,7 +197,6 @@ export async function generateChannelBible(
     content = acc.trim();
     if (content.length > 0) break;
   }
-  // Grounding pass: strip invented prices/specs/names the channel material doesn't support.
   content = await redactUngrounded({
     draft: content,
     source: `${args.channelDescription}\n\n${args.ideaText}`,

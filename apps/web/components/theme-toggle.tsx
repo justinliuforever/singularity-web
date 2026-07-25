@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 
-// Both icons render, swapped by CSS on the `.dark` class — no mount-gate state, no flash.
+// Both icons render and CSS swaps them on `.dark`; a mounted-gate would flash on load.
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
 

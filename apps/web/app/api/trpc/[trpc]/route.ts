@@ -11,10 +11,8 @@ function handler(request: Request) {
     req: request,
     router: appRouter,
     createContext,
-    // instrumentation's onRequestError never sees tRPC — it catches the error itself — so
-    // without this the ops panel reads "0 errors" while every mutation fails. Only real
-    // faults: expected rejections (UNAUTHORIZED on a lapsed session, quota FORBIDDEN)
-    // would bury them. Never store input — it carries bible text and script briefs.
+    // tRPC swallows its own errors, so onRequestError never sees them and the ops panel
+    // would read "0 errors". Real faults only; never store input (bible text, script briefs).
     onError: ({ error, path, type, ctx }) => {
       if (error.code !== "INTERNAL_SERVER_ERROR") return;
       after(

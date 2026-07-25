@@ -1,9 +1,6 @@
-// Cross-task utilities previously copy-pasted into each Trigger task file.
-
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// Follow a mobile-share short-link redirect (xhslink.com / v.douyin.com). Timeout so a
-// stalled hop can't hang the run; on any failure return the input unchanged.
+// Timeout so a stalled redirect hop can't hang the run; any failure returns the input unchanged.
 export async function expandShortLink(input: string, shortLink: string | null): Promise<string> {
   if (!shortLink) return input;
   try {
@@ -46,7 +43,7 @@ export function parseDurationToSec(text: string | number | undefined): number {
   return 0;
 }
 
-// Lenient LLM-JSON parse; callers validate the resulting unknown with their own zod schema.
+// Lenient parse; callers validate the unknown with their own zod schema.
 export async function parseLlmJson(raw: string, kind: "object" | "array" = "object"): Promise<unknown> {
   const open = kind === "object" ? "{" : "[";
   const close = kind === "object" ? "}" : "]";

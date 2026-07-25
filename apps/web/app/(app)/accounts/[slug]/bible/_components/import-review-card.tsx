@@ -31,8 +31,8 @@ type Props = {
   flags: ImportFlag[];
 };
 
-// Field-by-field confirmation: an imported bible stays inactive until every flag
-// is explicitly confirmed (server enforces the same gate on activateBible).
+// An imported bible stays inactive until every flag is confirmed; activateBible enforces
+// the same gate server-side.
 export function ImportReviewCard({ bibleId, bibleName, flags }: Props) {
   const router = useRouter();
   const utils = trpc.useUtils();

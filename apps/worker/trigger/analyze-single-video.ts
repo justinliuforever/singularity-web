@@ -20,8 +20,8 @@ import { generateText } from "ai";
 type Payload = {
   runId: string;
   userId?: string;
-  // An already-analyzed clerk_videos row id — the SOP is built from its cached
-  // transcript + analysis, so no re-fetch/ASR/vision and the channel SOPs are untouched.
+  // An already-analyzed clerk_videos row: the SOP is built from its cached transcript +
+  // analysis, so no re-fetch/ASR/vision happens.
   videoId: string;
   language?: "en" | "zh";
 };
@@ -68,8 +68,7 @@ export const analyzeSingleVideo = task({
         .where(eq(clerkVideos.id, payload.videoId))
         .limit(1);
       if (!video) throw new Error(`video ${payload.videoId} not found`);
-      // Strategy comes off the row, never the payload — a run staged by an older web build
-      // must still route correctly.
+      // Off the row, never the payload, so a run staged by an older web build still routes right.
       const isImagePost = video.contentType.endsWith("_image");
       if (!video.transcript || !video.transcript.trim()) {
         throw new Error(
@@ -77,8 +76,7 @@ export const analyzeSingleVideo = task({
         );
       }
 
-      // The analyzed account's display name (own channel or competitor) — the prompt's only
-      // owner-specific field. Owner columns come straight off the video row.
+      // The prompt's only owner-specific field; owner columns come straight off the video row.
       let channelName = video.sourceChannelName ?? "";
       if (video.competitorAccountId) {
         const [comp] = await db
@@ -135,10 +133,9 @@ export const analyzeSingleVideo = task({
       const cleaned = safeText(sopResult.text);
       if (!cleaned) throw new Error("单条拆解返回为空，请重试");
 
-      // The draft cites the cached analysis, so grounding must include it or real findings
-      // get redacted as invented. Cover fields join only when a real image read happened —
-      // otherwise thumbnailDescription is a caption-derived guess and would be laundered
-      // into ground truth.
+      // The draft cites the cached analysis, so grounding must include it or real findings get
+      // redacted as invented. Cover fields join only when a real image read happened — otherwise
+      // thumbnailDescription is a caption-derived guess laundered into ground truth.
       const coverAnalyzed = Boolean(
         video.coverVisionAt || video.coverDiagnosis || video.coverTitleSuggestions?.length,
       );
@@ -159,8 +156,8 @@ export const analyzeSingleVideo = task({
 
       await setProgress(2, 3, "saving sop", "写入数据库");
 
-      // Scoped upsert: replace this video's prior single_video SOP only (partial unique on
-      // video_id+language). Never deletes by (owner, sop_type), so channel SOPs stay intact.
+      // Replaces only this video's prior single_video SOP (partial unique on video_id+language);
+      // never deletes by (owner, sop_type), so the channel SOPs stay intact.
       await db
         .insert(clerkSops)
         .values({

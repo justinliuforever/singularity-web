@@ -1,5 +1,3 @@
-// English scripts skip this pass (no English variant in archive).
-
 import { generateText } from "ai";
 
 import { llm } from "@goooose/integrations/clients/llm";
@@ -15,9 +13,7 @@ export async function humanizeChinese(scriptText: string, maxChars?: number): Pr
       maxRetries: 2,
     });
     const out = result.text.trim();
-    // Truncation (empty or length-capped) loses the tail — reject. The 0.6 floor allows
-    // genuine de-AI compression (trimming 虚化动词/八股 shrinks zh text) while still
-    // catching a gutted rewrite; log discards so silent no-ops become observable.
+    // 0.6 floor: de-AI compression genuinely shrinks zh text, but a gutted rewrite must still be caught.
     if (!out || result.finishReason === "length") {
       console.warn(`[poet:humanize] discarded (finish=${result.finishReason}); keeping draft`);
       return scriptText;
@@ -28,8 +24,8 @@ export async function humanizeChinese(scriptText: string, maxChars?: number): Pr
       );
       return scriptText;
     }
-    // Budget overflow: the writer stage already enforced the duration window, so an
-    // inflated rewrite (the historical 2-3× short-form blowup) loses to the draft.
+    // The writer already hit the duration window, so an inflated rewrite (historically a
+    // 2-3× short-form blowup) loses to the draft.
     if (maxChars && out.length > maxChars * 1.15 && out.length > scriptText.length) {
       console.warn(
         `[poet:humanize] discarded (inflated ${scriptText.length}→${out.length} > ${maxChars}×1.15); keeping draft`,

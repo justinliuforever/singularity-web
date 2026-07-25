@@ -52,9 +52,8 @@ function BetaApplicationsCard() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(BETA_PAGE_SIZE);
-  // offset stays 0 and the limit grows: one query, accumulated rows, honest total.
-  // keepPreviousData holds the loaded rows visible while the larger page fetches
-  // (the limit is the query key, so growing it otherwise blanks the list mid-refetch).
+  // The limit grows instead of paging by offset; since it is the query key, keepPreviousData
+  // is what stops the list blanking mid-refetch.
   const apps = trpc.admin.listBetaApplications.useQuery(
     { limit },
     { placeholderData: keepPreviousData },

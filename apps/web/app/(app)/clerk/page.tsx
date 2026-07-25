@@ -18,8 +18,7 @@ export default async function ClerkLandingPage() {
   const user = await ensureCurrentUser();
   if (!user) return null;
 
-  // Decoupled (round 4): Clerk is one flat list of 对标账号 to analyze. Own accounts no longer
-  // appear here — they 复盘 via the account page's opt-in entry.
+  // Own accounts deliberately absent: they 复盘 via the account page's opt-in entry.
   const competitors = await db
     .select({
       id: competitorAccounts.id,

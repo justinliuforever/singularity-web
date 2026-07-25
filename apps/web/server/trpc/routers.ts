@@ -109,8 +109,7 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 48);
   if (ascii.length > 0) return ascii;
-  // ASCII-stripped result was empty (e.g. pure-Chinese name) — generate a short
-  // unique-ish slug instead of falling back to a colliding "channel".
+  // Pure-Chinese names strip to empty; a constant fallback would collide across channels.
   return `ch-${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -147,9 +146,8 @@ async function assertNoActiveRun(owner: string | RunOwner, agent: "clerk" | "mus
   }
 }
 
-// A "pending" row that never started within 30 min (failed/expired trigger, seeded row)
-// must not block or haunt the indicator forever. "running" rows are never filtered —
-// the job owns them until it finishes or the reaper sweeps it.
+// A "pending" row that never started within 30 min (failed trigger, seeded row) must stop
+// blocking; "running" rows are never filtered — the job owns them until it ends or the reaper sweeps.
 function freshActiveRunCond() {
   return or(
     eq(pipelineRuns.status, "running"),
@@ -172,8 +170,7 @@ async function uniqueSlug(userId: string, base: string): Promise<string> {
   }
 }
 
-// Trigger a task; if the trigger call itself fails, mark the just-created run
-// failed immediately instead of leaving a 'pending' orphan until the watchdog.
+// Fails the run inline so a failed trigger call leaves no 'pending' orphan for the watchdog.
 async function triggerOrFailRun(
   runId: string,
   taskId: string,
@@ -196,7 +193,6 @@ async function triggerOrFailRun(
   }
 }
 
-// Single monthly minutes pool, one entry per task below.
 export type RunTaskId =
   | "clerk-analyze-channel"
   | "clerk-analyze-single-video"
@@ -207,9 +203,7 @@ export type RunTaskId =
   | "poet-generate-script"
   | "poet-import-bible";
 
-// Every task must declare a cost model. A task missing from this table used to fall
-// through to "charge nothing", which is how clerk-detect-channel-series shipped unmetered;
-// keying on RunTaskId makes that omission a typecheck failure instead.
+// Exhaustive over RunTaskId so a new task cannot silently ship unmetered.
 //   number          — fixed charge at trigger
 //   byContent       — threshold-checked here, worker settles actual minutes at run end
 //   byTargetDuration— script length decides the charge
@@ -229,8 +223,8 @@ async function assertRunQuota(
   userId: string,
   taskId: RunTaskId,
   quotaMinutes?: number,
-  // byContent tasks settle at run end, so the gate has nothing to charge — checking a
-  // flat 1 minute let a user with 1 minute left start a run that settled 137.
+  // byContent settles at run end; gating on a flat 1 minute let a user with 1 minute left
+  // start a run that settled 137.
   estimateMinutes?: number,
 ): Promise<number> {
   const cost = TASK_COST[taskId];
@@ -250,7 +244,7 @@ async function assertRunQuota(
   return charge ?? 0;
 }
 
-// Shared by every agent-start mutation; triggerRunId is stamped into configJson so realtime tokens can be reissued later.
+// triggerRunId is stamped into configJson so realtime tokens can be reissued later.
 async function stageAndTriggerRun(args: {
   owner: { channelId: string } | { competitorAccountId: string };
   agent: "clerk" | "muse" | "poet";
@@ -296,8 +290,8 @@ async function stageAndTriggerRun(args: {
   return { runId: run.id, triggerRunId: handle.id, publicAccessToken: handle.publicAccessToken };
 }
 
-// Project spine: each channel owns a same-id own_account + default project. Idempotent
-// so it can also heal channels created before the project layer existed.
+// Each channel owns a same-id own_account + default project; idempotent, so it also heals
+// channels predating the project layer.
 async function ensureProjectSpine(c: {
   id: string;
   userId: string;
@@ -334,16 +328,14 @@ async function ensureProjectSpine(c: {
 
 type CompetitorImportStatus = "added" | "duplicate" | "invalid" | "unresolved";
 
-// Two-stage competitor upsert: Stage A provisional key, Stage B resolve YouTube
-// handle/legacy → canonical UC for dedup against backfilled rows, then upsert respecting
-// the partial-unique index (un-deletes a soft-deleted match instead of duplicating).
+// YouTube handle/legacy keys resolve to the canonical UC so dedup matches backfilled rows;
+// a soft-deleted match is un-deleted rather than duplicated (partial-unique index).
 async function upsertCompetitor(
   userId: string,
   platform: "youtube" | "xhs" | "douyin",
   url: string,
 ): Promise<{ status: CompetitorImportStatus; id: string | null }> {
-  // Mobile share pastes are short links (xhslink.com / v.douyin.com) — expand so the
-  // dedup key resolves and the stored url is the full profile URL.
+  // Mobile share pastes are short links (xhslink.com / v.douyin.com) — expand so the dedup key resolves.
   if (platform === "xhs") url = await expandXhsShortLink(url);
   else if (platform === "douyin") url = await expandDouyinShortLink(url);
   const pk = provisionalCompetitorKey(platform, url);
@@ -453,9 +445,8 @@ async function upsertCompetitor(
   return { status: "duplicate", id: raced?.id ?? null };
 }
 
-// Verifies the project belongs to the user; when expectedOwnAccountId is passed, also
-// asserts the project sits under that account (guards crafted calls mixing one's own
-// account A's channel with account B's project).
+// expectedOwnAccountId also pins the project to that account, blocking calls that mix
+// account A's channel with account B's project.
 async function assertProjectOwner(userId: string, projectId: string, expectedOwnAccountId?: string) {
   const [p] = await db
     .select({ id: projects.id, ownAccountId: projects.ownAccountId })
@@ -492,7 +483,6 @@ export const appRouter = router({
         return channel ?? null;
       }),
 
-    // Persistent context header: resolve [account · platform] > [project · duration] from route slugs.
     context: protectedProcedure
       .input(z.object({ accountSlug: z.string().min(1), projectSlug: z.string().optional() }))
       .query(async ({ ctx, input }) => {
@@ -507,16 +497,13 @@ export const appRouter = router({
           .where(and(eq(channels.userId, ctx.user.id), eq(channels.slug, input.accountSlug)))
           .limit(1);
         if (!account) return null;
-        // Account-level active Bible — surfaced as the persistent top-bar chip. Scalars
-        // only: this runs on every navigation, so never pull poetBible.content in here.
+        // Scalars only: this runs on every navigation, never pull poetBible.content here.
         const [activeBible] = await db
           .select({ id: poetBible.id, name: poetBible.name })
           .from(poetBible)
           .where(and(eq(poetBible.channelId, account.id), eq(poetBible.isActive, true)))
           .limit(1);
-        // A parked bible is neither active nor absent; without this the chip reads 未设置
-        // over finished imports. Counting open flags alone was not enough — confirming the
-        // last one left the bible parked and the chip flipped back to 未设置.
+        // A parked (inactive) bible is neither active nor absent; without both counts the chip reads 未设置.
         const [parked] = await db
           .select({
             total: count(),
@@ -567,7 +554,6 @@ export const appRouter = router({
           });
         }
         const slug = await uniqueSlug(ctx.user.id, slugify(input.name));
-        // Expand short-link pastes (xhslink.com / v.douyin.com) so the stored URL is the real profile URL.
         const platformUrl =
           input.platform === "xhs"
             ? await expandXhsShortLink(input.platformUrl)
@@ -612,7 +598,6 @@ export const appRouter = router({
           .where(and(eq(channels.id, id), eq(channels.userId, ctx.user.id)))
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
-        // Competitor binding lives exclusively in project_competitors (competitors router).
         await ensureProjectSpine(updated);
         return updated;
       }),
@@ -777,8 +762,6 @@ export const appRouter = router({
         return updated;
       }),
 
-    // Own-account follower count is only stored when set; refresh it on demand. Gated on a
-    // valid profile URL — an account with no real homepage has nothing to pull.
     refreshStats: protectedProcedure
       .input(z.object({ channelId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
@@ -928,7 +911,7 @@ export const appRouter = router({
       return { results };
     }),
 
-    // Stats are written once at import; re-fetch the same way upsertCompetitor did so numbers stay comparable.
+    // Re-fetch the same way upsertCompetitor did so the numbers stay comparable.
     refreshStats: protectedProcedure
       .input(competitorIdInput)
       .mutation(async ({ ctx, input }) => {
@@ -1073,9 +1056,8 @@ export const appRouter = router({
   }),
 
   channelsMaintenance: router({
-    // 伪账号收口: a study target added as an own account converts to a real
-    // competitor_account, re-owning its clerk history; spine rows are deleted explicitly
-    // (own_accounts/projects have NO FK to channels — nothing cascades from channels).
+    // Converts a study-only own account into a real competitor_account, re-owning its clerk
+    // history. Spine rows are deleted explicitly: own_accounts/projects have NO FK to channels.
     convertToCompetitor: protectedProcedure
       .input(z.object({ channelId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
@@ -1086,8 +1068,6 @@ export const appRouter = router({
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
 
-        // Guard: only pure clerk-study channels convert (any bible/script/topic/idea/
-        // monitor content means this is a real working account — refuse).
         const [guard] = await db
           .select({
             bibles: sql<number>`(SELECT count(*)::int FROM poet_bible b WHERE b.channel_id = ${channel.id})`,
@@ -1120,7 +1100,6 @@ export const appRouter = router({
         }
 
         const competitorId = await db.transaction(async (tx) => {
-          // Reuse an existing active competitor with the same identity (跨表重影).
           const [existing] = await tx
             .select({ id: competitorAccounts.id })
             .from(competitorAccounts)
@@ -1148,7 +1127,6 @@ export const appRouter = router({
               .returning({ id: competitorAccounts.id });
             compId = created!.id;
           }
-          // Re-own clerk content + clerk run history, then delete the spine explicitly.
           await tx
             .update(clerkVideos)
             .set({ competitorAccountId: compId, channelId: null, ownAccountId: null })
@@ -1172,8 +1150,7 @@ export const appRouter = router({
   }),
 
   sops: router({
-    // Picker data for cross-project SOP selection. Only ai_reference SOPs are
-    // offered: that's the machine-facing document the script writer consumes.
+    // Only ai_reference SOPs: that's the machine-facing document the script writer consumes.
     pickerList: protectedProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
@@ -1236,7 +1213,6 @@ export const appRouter = router({
   }),
 
   pipeline: router({
-    // All active runs across the user's channels AND competitors — global header indicator.
     listActiveAll: protectedProcedure.query(async ({ ctx }) => {
       return db
         .select({
@@ -1248,8 +1224,7 @@ export const appRouter = router({
           progress: pipelineRuns.progress,
           total: pipelineRuns.total,
           channelSlug: channels.slug,
-          // The default project shares the account slug, but a named one does not — the
-          // indicator was deep-linking every run to the default project's page.
+          // The default project shares the account slug but a named one does not — deep links need this.
           projectSlug: projects.slug,
           competitorAccountId: pipelineRuns.competitorAccountId,
           targetName: sql<string>`coalesce(${channels.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未知目标')`,
@@ -1268,9 +1243,7 @@ export const appRouter = router({
         .orderBy(desc(pipelineRuns.startedAt));
     }),
 
-    // Historical run-duration percentiles for a job type, used for the cold-start ETA range.
-    // Global (duration depends on job + input size, not the user) and outlier-trimmed;
-    // jobKey maps to deduplicated command strings to avoid bucket fragmentation.
+    // Deliberately global, not per-user: duration depends on job + input size.
     etaHints: protectedProcedure
       .input(z.object({ jobKey: z.enum(["clerk.analyze", "muse.monitor", "poet.script", "poet.bible"]) }))
       .query(async ({ input }) => {
@@ -1315,8 +1288,7 @@ export const appRouter = router({
           )
           .limit(1);
         if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
-        // Cancel refunds unconditionally, so a terminal run must never reach it — otherwise
-        // a settled run's minutes can be refunded by canceling it after the fact.
+        // Cancel refunds unconditionally, so a settled run must never reach it.
         if (run.status !== "pending" && run.status !== "running") {
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: "任务已结束，无法取消" });
         }
@@ -1342,7 +1314,6 @@ export const appRouter = router({
     startAnalysis: protectedProcedure
       .input(startAnalysisInput)
       .mutation(async ({ ctx, input }) => {
-        // Exactly one target (zod xor): own channel or competitor account.
         let owner: { channelId: string } | { competitorAccountId: string };
         let platform = "xhs";
         if (input.channelId) {
@@ -1388,14 +1359,11 @@ export const appRouter = router({
           taskId: "clerk-analyze-channel",
           config,
           payload: config,
-          // videoIds is z.default([]) — never nullish — so `??` never fell through to limit
-          // and the estimate was always 0, which also dropped the floor below 1.
+          // videoIds defaults to [] and is never nullish, so `||` not `??` — else the estimate is 0.
           estimateMinutes: estimateRunMinutes(platform, input.videoIds.length || input.limit || 0),
         });
       }),
 
-    // Deep-dive SOP for a single already-analyzed video. Writes a single_video SOP keyed
-    // to that video, leaving the channel SOPs untouched.
     generateVideoSop: protectedProcedure
       .input(generateVideoSopInput)
       .mutation(async ({ ctx, input }) => {
@@ -1502,7 +1470,6 @@ export const appRouter = router({
         return { id: deleted?.id ?? null };
       }),
 
-    // 清空重建: wipe a target's analyzed videos + SOPs so the user can start the corpus over.
     resetTarget: protectedProcedure
       .input(resetTargetInput)
       .mutation(async ({ ctx, input }) => {
@@ -1533,8 +1500,7 @@ export const appRouter = router({
         return { ok: true };
       }),
 
-    // Library-side: delete ALL of one owner's SOPs (keeps the analyzed videos — unlike
-    // resetTarget). project_sops bindings cascade-unbind, so the caller must warn.
+    // Unlike resetTarget this keeps the videos; project_sops bindings cascade-unbind, so the caller must warn.
     deleteSopsForOwner: protectedProcedure
       .input(resetTargetInput)
       .mutation(async ({ ctx, input }) => {
@@ -1642,7 +1608,6 @@ export const appRouter = router({
         const boundIds = new Set(bound.map((b) => b.id));
         const selectedIds = input.competitorAccountIds?.filter((id) => boundIds.has(id));
 
-        // Temp competitors: must be the user's, but need NOT be bound to this project.
         let extraIds: string[] | undefined;
         const extraReq = input.extraCompetitorAccountIds?.filter((id) => !boundIds.has(id));
         if (extraReq && extraReq.length > 0) {
@@ -1720,7 +1685,7 @@ export const appRouter = router({
           .set({
             approved: input.approved,
             approvedAt: input.approved ? new Date() : null,
-            // 采用 from a 已忽略 state must un-dismiss (mutual exclusivity).
+            // Approving must un-dismiss (mutually exclusive states).
             ...(input.approved ? { dismissedAt: null } : {}),
           })
           .where(
@@ -1747,7 +1712,7 @@ export const appRouter = router({
           .update(museIdeas)
           .set({
             dismissedAt: input.dismissed ? new Date() : null,
-            // 忽略 clears 采用 (mutual exclusivity).
+            // Dismissing clears approval (mutually exclusive states).
             ...(input.dismissed ? { approved: false } : {}),
           })
           .where(
@@ -1967,7 +1932,6 @@ export const appRouter = router({
           .where(and(eq(poetBible.id, input.bibleId), eq(channels.userId, ctx.user.id)))
           .limit(1);
         if (!target) throw new TRPCError({ code: "NOT_FOUND" });
-        // Field-by-field review gate: imported bibles activate only after every flag is confirmed.
         const unresolved = (target.poet_bible.importFlags ?? []).filter((f) => !f.resolved).length;
         if (unresolved > 0) {
           throw new TRPCError({
@@ -1990,10 +1954,8 @@ export const appRouter = router({
           .set({ isActive: true, updatedAt: new Date() })
           .where(eq(poetBible.id, input.bibleId))
           .returning();
-        // The Bible is account-level; only an explicit project context sets the per-project pin.
-        // Pinless projects resolve to this account-active Bible via resolveActiveBible's fallback.
+        // Bibles are account-level; pinless projects fall back to it via resolveActiveBible.
         if (input.projectId) {
-          // Pin only within the bible's own account — never pin account A's bible to B's project.
           await assertProjectOwner(ctx.user.id, input.projectId, target.poet_bible.channelId);
           await db
             .update(projects)
@@ -2406,7 +2368,6 @@ export const appRouter = router({
         return updated;
       }),
 
-    // The default project (id === ownAccountId) is the account spine — not deletable.
     delete: protectedProcedure
       .input(deleteProjectInput)
       .mutation(async ({ ctx, input }) => {
@@ -2430,7 +2391,6 @@ export const appRouter = router({
         return { id: deleted?.id ?? null };
       }),
 
-    // Picker source for "在项目中选用": every project the user owns, across accounts.
     listForPicker: protectedProcedure.query(async ({ ctx }) => {
       return db
         .select({

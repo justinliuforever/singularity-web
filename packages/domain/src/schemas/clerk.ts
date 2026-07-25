@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Mirrors archive `analyze_video()` (15 string fields), 1:1 with clerk_videos analysis columns.
+// 1:1 with the clerk_videos analysis columns.
 export const clerkAnalysisSchema = z.object({
   thumbnail_description: z.string(),
   thumbnail_why_it_works: z.string(),
@@ -21,7 +21,6 @@ export const clerkAnalysisSchema = z.object({
 
 export type ClerkAnalysis = z.infer<typeof clerkAnalysisSchema>;
 
-// snake_case LLM JSON → camelCase Drizzle columns.
 export function clerkAnalysisToDbRow(a: ClerkAnalysis) {
   return {
     thumbnailDescription: a.thumbnail_description,

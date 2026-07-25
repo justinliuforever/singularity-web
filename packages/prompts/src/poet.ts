@@ -1,6 +1,6 @@
 import { CHINESE_WRAPPER, ZH_STYLE_GUIDE } from "./clerk";
 
-// Poet prompts stay English-instruction (better structure adherence); zh output gets the glossary appended so the final script avoids 翻译腔.
+// Instructions stay English (better structure adherence); zh output only gets the glossary appended.
 function withZhStyle(prompt: string, language: "en" | "zh"): string {
   return language === "zh" ? `${prompt}\n\n${ZH_STYLE_GUIDE}` : prompt;
 }
@@ -91,9 +91,8 @@ type BibleFromDocumentArgs = {
   language?: "en" | "zh";
 };
 
-// Import mode: the source is the creator's OWN persona/IP document (faithful transcript).
-// Fidelity over invention — every specific must come from the transcript. Validated on
-// real MCN samples in the R6 bake-off (digit audit 0 violations).
+// Import mode: the source is the creator's OWN persona/IP document, so fidelity beats
+// invention — every specific must come from the transcript.
 export function buildBibleFromDocumentPrompt(args: BibleFromDocumentArgs): string {
   const zh = (args.language ?? "zh") === "zh";
   return `You are a content strategist. Below is a FAITHFUL TRANSCRIPT of a creator's own persona/IP document (人设文档). Restructure it into a Channel Bible — a strategic brief that will condition all AI content generation for this creator's account${args.channelName ? ` ("${args.channelName}")` : ""}.
@@ -148,9 +147,8 @@ type ScriptWritingArgs = {
   hostName?: string | null;
 };
 
-// Bible/SOP can carry the ANALYZED creator's self-references ("我是孟娇") — a self-name is
-// therefore allowed only when it is the account's own name, or the Bible-declared host
-// (imported persona docs describe THIS account's host, e.g. HOST: 徐艳梅).
+// Bible/SOP can carry the ANALYZED creator's self-references ("我是孟娇"), so a self-name is
+// allowed only when it is the account's own name or the Bible-declared host.
 export function identityRule(channelName: string | undefined, hostName?: string | null): string {
   const host = hostName?.trim() || undefined;
   const forChannel = channelName ? ` You are writing for the account "${channelName}".` : "";
@@ -167,9 +165,8 @@ export function buildScriptWritingPrompt(args: ScriptWritingArgs): string {
   const minWordCount = Math.round(args.targetWordCount * 0.9);
   const maxWordCount = Math.round(args.targetWordCount * 1.2);
   const isShort = args.targetWordCount < 300;
-  // A sub-90s script can't carry the full six-beat structure inside its word budget —
-  // forcing every marker is the biggest driver of short-form overshoot. Collapse to the
-  // three load-bearing beats so the model can actually land in-window.
+  // A sub-90s script can't carry six beats inside its word budget; forcing every marker is
+  // the biggest driver of short-form overshoot.
   const markerLine = isShort
     ? "Output the script as plain text with ONLY these markers, in order: [HOOK], [ITEM 1], [CTA]. One or two short sentences each. Omit [TEASE], [CLIMAX], and [CLOSE] — a short video has no room for them."
     : "Output the script as plain text, with section markers in this EXACT order: [HOOK], [TEASE], [ITEM 1], [CLIMAX], [CTA], [CLOSE]. Use each marker once; [CLIMAX] must come before [CTA]; [CLOSE] is the single final sign-off.";
@@ -429,9 +426,7 @@ Output ONLY the JSON object. No markdown fences, no explanation, no prefix. The 
 
 export type FactCheckItem = { index: number; fact: string; src: string };
 
-// Verify each extracted fact against world knowledge. A source citation does NOT make a
-// fact correct (reference material can be wrong, e.g. a famous product's launch year).
-// Deliberately conservative: default to "verified" — a false flag is worse than a miss.
+// Deliberately conservative: defaults to "verified" — a false flag is worse than a miss.
 export function buildFactCheckPrompt(args: {
   items: FactCheckItem[];
   referenceTitles: string[];

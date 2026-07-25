@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const startAnalysisInput = z
   .object({
-    // Exactly one analysis target: own channel or competitor account.
     channelId: z.string().uuid().optional(),
     competitorAccountId: z.string().uuid().optional(),
     limit: z.number().int().min(1).max(50).default(10),
@@ -23,7 +22,7 @@ export const startAnalysisInput = z
 
 export type StartAnalysisInput = z.infer<typeof startAnalysisInput>;
 
-// Single-video deep-dive SOP on an already-analyzed clerk_videos row.
+// videoId is an already-analyzed clerk_videos row, not a platform video id.
 export const generateVideoSopInput = z.object({
   videoId: z.string().uuid(),
   language: z.enum(["en", "zh"]).default("zh"),

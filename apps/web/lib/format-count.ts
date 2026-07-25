@@ -17,7 +17,7 @@ export function formatViews(views: number | null): string {
   return String(views);
 }
 
-// m:ss from whole seconds (video durations, not wall-clock elapsed).
+// Whole seconds → m:ss; video durations, not wall-clock elapsed.
 export function formatDuration(seconds: number | null): string {
   if (seconds == null) return "—";
   const m = Math.floor(seconds / 60);

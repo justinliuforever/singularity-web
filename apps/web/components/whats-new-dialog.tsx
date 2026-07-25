@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { APP_VERSION } from "@/lib/version";
 
-// Curated per-minor-version highlights (not the full release notes). No entry = no dialog.
+// Curated highlights, not the release notes; a version with no entry shows no dialog.
 const WHATS_NEW: Record<string, { title: string; items: string[] }> = {
   "0.8": {
     title: "抖音来了",
@@ -42,8 +42,8 @@ export function WhatsNewDialog({ lastSeenVersion }: { lastSeenVersion: string | 
   };
 
   return (
-    // Esc/backdrop closes without marking seen — only 知道了 confirms, so an
-    // accidental dismiss re-announces on the next visit.
+    // Only 知道了 marks the version seen; Esc/backdrop deliberately re-announces
+    // on the next visit.
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogContent className="max-w-sm">
         <AlertDialogHeader>

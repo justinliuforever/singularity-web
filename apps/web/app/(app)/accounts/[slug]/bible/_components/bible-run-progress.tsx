@@ -10,8 +10,7 @@ import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
-// Dedicated to the account bible page: it has account context but no project,
-// so PoetRunProgress (which needs projectSlug for its 查看脚本 action) doesn't fit.
+// Not PoetRunProgress: that one needs a projectSlug, and this page has none.
 const BIBLE_STAGES: Stage[] = [
   { label: "读取文件", matches: (p) => p === "loading file" },
   { label: "转写文档", matches: (p) => p === "transcribing document" },

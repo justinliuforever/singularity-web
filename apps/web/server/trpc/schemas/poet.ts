@@ -55,8 +55,7 @@ export const switchActiveBibleInput = z.object({
   projectId: z.string().uuid().optional(),
 });
 
-// Duration in seconds (supports ≤60s short videos). ≥ 2000 zh chars / ≥ 1500 en
-// words (≈10 min) routes to long-form.
+// durationSeconds, not minutes; ≥2000 zh chars / ≥1500 en words routes to long-form.
 export const generateScriptInput = z.object({
   channelId: z.string().uuid(),
   projectId: z.string().uuid(),

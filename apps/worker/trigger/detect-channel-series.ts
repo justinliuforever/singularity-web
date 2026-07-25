@@ -100,8 +100,8 @@ export const detectChannelSeries = task({
         language,
       });
 
-      // Title-only clustering is a Flash-tier task; fall back to Pro only if Flash
-      // emits empty output (DeepSeek's reasoning-budget-empty-text quirk).
+      // Title-only clustering is a Flash-tier task; Pro is only a fallback for DeepSeek's
+      // reasoning-budget-empty-text quirk.
       let result = await generateText({
         model: llm("flash"),
         prompt,
@@ -135,12 +135,10 @@ export const detectChannelSeries = task({
         detail: `写入 ${parsed.series.length} 个系列`,
       });
 
-      // Enrich with YT Data API so sampleVideos carry real viewCount + publishedAt
-      // (yt-dlp flat returns null/0 for both).
+      // yt-dlp flat returns null/0 for viewCount + publishedAt, so enrich via YT Data API.
       const enrich = await fetchVideoMetadataBatch(videos.map((v) => v.video_id));
       logger.info(`Enriched ${enrich.size}/${videos.length} videos via YT Data API`);
 
-      // Replace prior detection for this channel (single canonical clustering per run).
       await db.delete(channelSeries).where(eq(channelSeries.channelId, channel.id));
 
       let insertedSeriesCount = 0;

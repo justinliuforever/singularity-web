@@ -3,8 +3,6 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-// Card with a soft radial highlight that tracks the cursor inside the card —
-// cursor-reactive without hijacking the pointer. Hidden under reduced motion.
 export function SpotlightCard({
   className,
   children,

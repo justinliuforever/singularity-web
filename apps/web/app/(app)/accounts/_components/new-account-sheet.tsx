@@ -37,7 +37,6 @@ import { ChannelUrlPreview } from "./channel-url-preview";
 
 type Props = {
   size?: "sm" | "lg" | "default";
-  // Lets the sidebar reuse the sheet behind its own menu-button styling.
   trigger?: ReactElement;
 };
 

@@ -25,7 +25,6 @@ export async function loadProxyPool(
   return new ProxyPool(sessions);
 }
 
-// One UPDATE per session with activity, flushed at task end.
 export async function flushProxyPool(
   db: PostgresJsDatabase,
   pool: ProxyPool,
@@ -56,7 +55,6 @@ export async function flushProxyPool(
   return { updatedSessions: outcomes.size, newlyDisabled };
 }
 
-// Called from cron or admin script.
 export async function reenableSessions(
   db: PostgresJsDatabase,
   ids: string[],

@@ -1,6 +1,5 @@
 import { permanentRedirect } from "next/navigation";
 
-// §5: project hubs live under /accounts/[slug]/projects/[project]; bare /projects/[slug] 308s to the account hub.
 export default async function ProjectHubRedirect({
   params,
 }: {

@@ -60,8 +60,7 @@ function recordLlmUsage(kind: "llm" | "vision", provider: string, model: string,
   });
 }
 
-// Single-choke-point token capture: wraps any model from a factory so every
-// generateText/streamText call site is metered without touching it.
+// Single choke point: wrapping the model meters every call site without touching it.
 export function usageMiddleware(
   kind: "llm" | "vision",
   provider: string,
