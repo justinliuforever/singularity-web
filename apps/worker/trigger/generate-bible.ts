@@ -1,5 +1,5 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { generateText } from "ai";
 
 import { channels, clerkVideos, pipelineRuns } from "@goooose/db";
@@ -35,10 +35,12 @@ export const generateBible = task({
         .limit(1);
       if (!channel) throw new Error(`channel ${payload.channelId} not found`);
 
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
       // Auto-derive description from channel name + sample video titles if empty.
       let resolvedDescription = channel.description?.trim() ?? "";

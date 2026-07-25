@@ -17,6 +17,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { estimateRunMinutes } from "@/lib/run-estimate";
 import { trpc } from "@/lib/trpc";
 
 type Source = "newest" | "popular" | "urls";
@@ -250,7 +251,8 @@ export function ClerkStartSheet({
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  推荐 20 个（约 6-10 分钟出 SOP，4 并行）
+                  推荐 20 个（约 6-10 分钟出 SOP，4 并行）· 预计消耗{" "}
+                  {estimateRunMinutes(platform, Number.parseInt(limit, 10) || 0)} 配额分钟
                 </p>
               </Field>
             ) : (

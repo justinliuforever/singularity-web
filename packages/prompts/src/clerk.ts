@@ -188,8 +188,8 @@ ${timestampInstruction}
 
 Analyze this video and return a JSON object with these exact keys:
 
-1. **thumbnail_description**: Based on the title and transcript, infer what the thumbnail/cover image likely contains. Note: you cannot see the image, so describe what an effective thumbnail for this content would include.
-2. **thumbnail_why_it_works**: Based on the title's hook and topic, analyze what visual elements would make a thumbnail effective for this content.
+1. **thumbnail_description**: You CANNOT see the cover image. Never state or guess what it actually shows — no "the cover is likely…", no inferred subjects, colours, or layout. Write a RECOMMENDATION instead: what an effective cover for this content would include, phrased as advice ("建议…" / "A strong cover here would…"). A later vision pass overwrites this field with a real read when the image is available; anything you write here that reads as an observation becomes a fabricated one.
+2. **thumbnail_why_it_works**: Same rule — reason only from the title's hook and topic about which visual elements would make a cover effective. Do not describe the existing cover.
 3. **opening_hook**: Detailed breakdown of the opening hook (first 10-15 seconds). Quote the exact opening text with [0:00]-[0:15] timestamp anchors.
 4. **opening_hook_type**: Classify the opening hook type.
 5. **hooks_throughout**: Identify ALL hooks used throughout the ENTIRE video. For EACH: \`[m:ss] [Hook Name] ([Hook Type]): "exact quoted text" — [Explanation of why this hook works at this moment]\`. Aim for 4-8 hooks across the duration.

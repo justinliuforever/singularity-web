@@ -619,6 +619,7 @@ export const analyzeChannel = task({
       let analyzed = 0;
       let failed = 0;
       let selectedCount = 0;
+      let degradedToText = 0;
 
       // Shared analyze → vision → upsert for one already-resolved item (XHS + Douyin
       // resolve their own fetch/transcription into ResolvedClerkItem, then call this).
@@ -1140,6 +1141,12 @@ export const analyzeChannel = task({
                 logger.warn(
                   `Douyin detail refresh failed for ${item.awemeId}: ${(err as Error).message?.slice(0, 120)}`,
                 );
+              }
+              // Without the detail there are no play streams, so a video silently becomes a
+              // caption-only analysis while still billing its full duration. Say so.
+              if (!detail && item.contentType === "douyin_video") {
+                degradedToText++;
+                appendLog(`「${item.title.slice(0, 24)}」详情获取失败，仅按文案分析（无转写）`);
               }
             }
             const video = detail ?? item;
@@ -2067,6 +2074,7 @@ export const analyzeChannel = task({
       return {
         analyzed,
         failed,
+        degradedToText,
         total: selectedCount,
         sopsGenerated,
         channelName: channel.name,

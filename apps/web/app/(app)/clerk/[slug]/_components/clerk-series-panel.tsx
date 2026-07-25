@@ -2,7 +2,7 @@
 
 import { ExternalLink, Layers, Loader2, Play, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { ChannelSeries } from "@goooose/db";
@@ -62,11 +62,30 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
   const utils = trpc.useUtils();
   const detect = trpc.clerk.detectSeries.useMutation({
     onSuccess: () => {
-      toast.info("已开始扫描频道系列（约 1-2 分钟），完成后会自动刷新。");
-      setTimeout(() => utils.clerk.listSeries.invalidate({ channelId }), 90_000);
+      toast.info("已开始扫描频道系列，完成后会自动刷新。");
+      void utils.pipeline.listActiveAll.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // The only production run took 166s; the old fixed 90s timer revealed an empty panel and
+  // left the user to guess. Follow the run instead, and refresh on the falling edge.
+  const activeQuery = trpc.pipeline.listActiveAll.useQuery(undefined, {
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((r) => r.command === "clerk-detect-channel-series") ? 5_000 : false,
+  });
+  const running = (activeQuery.data ?? []).some(
+    (r) => r.command === "clerk-detect-channel-series",
+  );
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      void utils.clerk.listSeries.invalidate({ channelId });
+      router.refresh();
+    }
+    wasRunning.current = running;
+  }, [running, utils, channelId, router]);
+  const busy = detect.isPending || running;
 
   const startAnalysis = trpc.clerk.startAnalysis.useMutation({
     onSuccess: () => {
@@ -118,7 +137,7 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
                 key={n}
                 type="button"
                 onClick={() => setVideoCount(n)}
-                disabled={detect.isPending}
+                disabled={busy}
                 className={`rounded-md border px-2 py-1 font-mono text-[10px] transition-colors ${
                   videoCount === n
                     ? "border-foreground bg-foreground/5"
@@ -133,14 +152,18 @@ export function ClerkSeriesPanel({ channelId, initialSeries }: Props) {
             size="sm"
             variant="outline"
             onClick={() => detect.mutate({ channelId, videoCount, language: "zh" })}
-            disabled={detect.isPending}
+            disabled={busy}
           >
-            {detect.isPending ? (
+            {busy ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
             ) : (
               <RefreshCw data-icon="inline-start" />
             )}
-            {hasSeries ? `重新归类（${videoCount} 条）` : `扫描归类（${videoCount} 条）`}
+            {busy
+              ? "扫描中…"
+              : hasSeries
+                ? `重新归类（${videoCount} 条）`
+                : `扫描归类（${videoCount} 条）`}
           </Button>
         </div>
       </div>

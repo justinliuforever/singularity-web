@@ -247,7 +247,8 @@ export const monitorCompetitors = task({
             // Over-fetch + newest-first sort so old pinned videos don't crowd out fresh ones.
             let videos = await getDouyinUserVideos(secUid, Math.min(60, maxVideosPerCompetitor * 4));
             videos.sort((a, b) => b.createTime - a.createTime);
-            videos = videos.slice(0, maxVideosPerCompetitor);
+            // Filter before truncating: the other order could return nothing while the
+            // already-fetched window still held plenty of matching items.
             if (contentFilter !== "all") {
               videos = videos.filter((v) =>
                 contentFilter === "video"
@@ -255,6 +256,7 @@ export const monitorCompetitors = task({
                   : v.contentType === "douyin_image",
               );
             }
+            videos = videos.slice(0, maxVideosPerCompetitor);
             for (const v of videos) {
               candidates.push({
                 competitorIndex: ci,
@@ -267,6 +269,12 @@ export const monitorCompetitors = task({
               });
             }
           } else {
+            // YouTube has no image posts, so an 图文-only run must exclude it rather than
+            // silently returning every video as if the filter did not apply.
+            if (contentFilter === "image") {
+              logger.info(`Competitor ${comp.url}: YouTube has no image posts — skipped by filter`);
+              continue;
+            }
             if (!proxyPool) {
               logger.warn(`Competitor ${comp.url}: YouTube path needs proxyPool — skipping`);
               continue;

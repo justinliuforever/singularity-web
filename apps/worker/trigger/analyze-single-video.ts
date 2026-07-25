@@ -1,5 +1,5 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 import {
   channels,
@@ -50,10 +50,12 @@ export const analyzeSingleVideo = task({
   run: async (payload: Payload) => {
     const language = payload.language ?? "zh";
     return withMeteredRunDb({ runId: payload.runId, userId: payload.userId, feature: "clerk-analyze-single-video" }, async (db) => {
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
       const setProgress = (current: number, total: number, phase: string, detail: string) =>
         metadata.set("progress", { current, total, phase, detail });

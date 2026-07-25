@@ -55,6 +55,7 @@ import { provisionalCompetitorKey } from "@goooose/domain/services/competitors";
 
 import { db } from "@/lib/db";
 import { ETA_JOB_COMMANDS } from "@/lib/eta-jobs";
+import { estimateRunMinutes } from "@/lib/run-estimate";
 import { COMMAND_LABEL } from "@/lib/run-labels";
 import { accessRouter, adminRouter } from "./access";
 import { protectedProcedure, router } from "./init";
@@ -224,16 +225,25 @@ const TASK_COST: Record<RunTaskId, number | "byContent" | "byTargetDuration" | "
   "poet-import-bible": GENERATION_MINUTES.bibleImport,
 };
 
-async function assertRunQuota(userId: string, taskId: RunTaskId, quotaMinutes?: number): Promise<number> {
+async function assertRunQuota(
+  userId: string,
+  taskId: RunTaskId,
+  quotaMinutes?: number,
+  // byContent tasks settle at run end, so the gate has nothing to charge — checking a
+  // flat 1 minute let a user with 1 minute left start a run that settled 137.
+  estimateMinutes?: number,
+): Promise<number> {
   const cost = TASK_COST[taskId];
   if (cost === "free" && quotaMinutes === undefined) return 0;
   const fixed = cost === "byTargetDuration" ? scriptMinutes() : typeof cost === "number" ? cost : undefined;
   const charge = quotaMinutes ?? fixed;
-  const q = await checkMinutes(db, { userId, need: charge ?? 1 });
+  const need = charge ?? estimateMinutes ?? 1;
+  const q = await checkMinutes(db, { userId, need });
   if (!q.allowed) {
+    const detail = charge ? `，本次需 ${charge} 分钟` : estimateMinutes ? `，本次预计约 ${estimateMinutes} 分钟` : "";
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: `本月时长额度不足（剩余 ${Math.max(q.remaining, 0)} 分钟${charge ? `，本次需 ${charge} 分钟` : ""}）。可在「用量与额度」页兑换额度码，或联系我们。`,
+      message: `本月时长额度不足（剩余 ${Math.max(q.remaining, 0)} 分钟${detail}）。可在「用量与额度」页兑换额度码，或联系我们。`,
     });
   }
   if (charge) await consumeMinutes(db, { userId, amount: charge });
@@ -250,8 +260,9 @@ async function stageAndTriggerRun(args: {
   projectId?: string;
   userId: string;
   quotaMinutes?: number;
+  estimateMinutes?: number;
 }) {
-  const charged = await assertRunQuota(args.userId, args.taskId, args.quotaMinutes);
+  const charged = await assertRunQuota(args.userId, args.taskId, args.quotaMinutes, args.estimateMinutes);
   const [run] = await db
     .insert(pipelineRuns)
     .values({
@@ -1334,17 +1345,19 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Exactly one target (zod xor): own channel or competitor account.
         let owner: { channelId: string } | { competitorAccountId: string };
+        let platform = "xhs";
         if (input.channelId) {
           const [channel] = await db
-            .select({ id: channels.id })
+            .select({ id: channels.id, platform: channels.platform })
             .from(channels)
             .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
             .limit(1);
           if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
           owner = { channelId: channel.id };
+          platform = channel.platform;
         } else {
           const [comp] = await db
-            .select({ id: competitorAccounts.id })
+            .select({ id: competitorAccounts.id, platform: competitorAccounts.platform })
             .from(competitorAccounts)
             .where(
               and(
@@ -1356,6 +1369,7 @@ export const appRouter = router({
             .limit(1);
           if (!comp) throw new TRPCError({ code: "NOT_FOUND", message: "Competitor not found" });
           owner = { competitorAccountId: comp.id };
+          platform = comp.platform;
         }
 
         await assertNoActiveRun(owner, "clerk");
@@ -1375,6 +1389,10 @@ export const appRouter = router({
           taskId: "clerk-analyze-channel",
           config,
           payload: config,
+          estimateMinutes: estimateRunMinutes(
+            platform,
+            input.videoIds?.length ?? input.limit ?? 0,
+          ),
         });
       }),
 
@@ -1665,12 +1683,18 @@ export const appRouter = router({
 
         const contentFilter = input.contentFilter ?? input.xhsContentType ?? "all";
 
+        const competitorCount =
+          (selectedIds?.length ?? bound.length) + (extraIds?.length ?? 0);
         return stageAndTriggerRun({
           userId: ctx.user.id,
           owner: { channelId: channel.id },
           projectId: input.projectId,
           agent: "muse",
           taskId: "muse-monitor-competitors",
+          estimateMinutes: estimateRunMinutes(
+            channel.platform,
+            competitorCount * (input.maxVideosPerCompetitor ?? 10),
+          ),
           config: {
             maxVideosPerCompetitor: input.maxVideosPerCompetitor,
             numIdeasPerVideo: input.numIdeasPerVideo,

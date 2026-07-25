@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, runs, schedules } from "@trigger.dev/sdk";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -32,9 +32,13 @@ export const reapStuckRuns = schedules.task({
             OR (${pipelineRuns.status} = 'running' AND ${pipelineRuns.startedAt} < now() - interval '5 hours')
           )`,
         )
-        .returning({ id: pipelineRuns.id });
+        .returning({ id: pipelineRuns.id, configJson: pipelineRuns.configJson });
       for (const r of reaped) {
         await refundRunQuota(db, r.id).catch(() => {});
+        // Written off in our DB but still queued on Trigger, it would hold a slot and then
+        // deliver work the user was already refunded for.
+        const triggerRunId = (r.configJson as { triggerRunId?: string } | null)?.triggerRunId;
+        if (triggerRunId) await runs.cancel(triggerRunId).catch(() => {});
       }
       logger.info(`reaped ${reaped.length} stuck runs`);
       return { reaped: reaped.length };

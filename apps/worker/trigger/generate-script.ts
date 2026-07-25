@@ -1,5 +1,5 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import {
   channels,
@@ -61,10 +61,12 @@ export const generateScript = task({
         .where(eq(projects.id, projectId))
         .limit(1);
 
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
       // total is conservative until duration/outline are known; corrected below + after outline.
       let total = 4;

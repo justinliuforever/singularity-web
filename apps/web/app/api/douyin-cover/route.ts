@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { createUsageSink } from "@goooose/db";
+import { eq } from "drizzle-orm";
+
+import { clerkVideos, createUsageSink } from "@goooose/db";
 import { getDouyinVideoDetail } from "@goooose/integrations/clients/douyin";
 import { runWithUsage } from "@goooose/integrations/metering";
 
@@ -16,6 +18,15 @@ const usageSink = createUsageSink(db);
 // metered, per-user rate-limited since it spends the shared TikHub key).
 const CACHE_TTL_MS = 60 * 60_000;
 const coverCache = new Map<string, { url: string; exp: number }>();
+// Re-resolve only inside the last day of the signature's life; before that the stored URL
+// still works and calling TikHub for it is a purchase with nothing to show for it.
+const RESIGN_MARGIN_MS = 24 * 60 * 60_000;
+
+function freshUntil(url: string): number {
+  const exp = new URL(url).searchParams.get("x-expires");
+  const secs = exp ? Number(exp) : NaN;
+  return Number.isFinite(secs) ? secs * 1000 : 0;
+}
 
 export async function GET(request: Request): Promise<NextResponse> {
   const awemeId = new URL(request.url).searchParams.get("v") ?? "";
@@ -30,6 +41,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   const now = Date.now();
   const cached = coverCache.get(awemeId);
   if (cached && cached.exp > now) return NextResponse.redirect(cached.url);
+
+  const [stored] = await db
+    .select({ url: clerkVideos.thumbnailUrl })
+    .from(clerkVideos)
+    .where(eq(clerkVideos.platformVideoId, awemeId))
+    .limit(1);
+  if (stored?.url && freshUntil(stored.url) > now + RESIGN_MARGIN_MS) {
+    return NextResponse.redirect(stored.url);
+  }
 
   if (!rateLimitOk(`douyin-cover:${user.id}`, 60)) {
     return new NextResponse("rate limited", { status: 429 });

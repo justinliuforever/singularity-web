@@ -1,5 +1,5 @@
 import { AbortTaskRunError, logger, metadata, task } from "@trigger.dev/sdk";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 
 import { bibleImportChunks, bibleImportFiles, channels, pipelineRuns } from "@goooose/db";
 
@@ -44,10 +44,12 @@ export const importBible = task({
         throw new AbortTaskRunError(`文件状态异常（${file.status}），请重新上传`);
       }
 
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
       await db
         .update(bibleImportFiles)
         .set({ status: "processing" })

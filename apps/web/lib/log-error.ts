@@ -11,6 +11,7 @@ type LogInput = {
   method?: string | null;
   kind?: string | null;
   digest?: string | null;
+  userId?: string | null;
   meta?: Record<string, unknown> | null;
 };
 
@@ -26,6 +27,7 @@ export async function logServerError(input: LogInput): Promise<void> {
       method: input.method ?? null,
       kind: input.kind ?? null,
       digest: input.digest ?? null,
+      userId: input.userId ?? null,
       meta: input.meta ?? null,
     });
   } catch (e) {

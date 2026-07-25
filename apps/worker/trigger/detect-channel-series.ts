@@ -1,6 +1,6 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
 import { generateText } from "ai";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import {
   channels,
@@ -51,10 +51,12 @@ export const detectChannelSeries = task({
         throw new Error("series detect only supports YouTube channels currently");
       }
 
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", total: 3, startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
       const proxyPool = await loadProxyPool(db, { provider: "wealthproxies" });
       if (proxyPool.size === 0) throw new Error("proxy pool empty");

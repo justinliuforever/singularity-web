@@ -1,5 +1,5 @@
 import { logger, metadata, task } from "@trigger.dev/sdk";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import {
   channels,
@@ -68,10 +68,12 @@ export const analyzeCustomTopic = task({
       const sop = await resolvePrimarySop(db, projectId, channel.id);
       const sopText = sop?.contentMd ?? "[No SOP reference available]";
 
-      await db
+      const [started] = await db
         .update(pipelineRuns)
         .set({ status: "running", total: 2, startedAt: new Date() })
-        .where(eq(pipelineRuns.id, payload.runId));
+        .where(and(eq(pipelineRuns.id, payload.runId), ne(pipelineRuns.status, "failed")))
+        .returning({ id: pipelineRuns.id });
+      if (!started) throw new Error("run already settled (reaped) — aborting to avoid double-deliver");
 
       const userRefs: CustomTopicReference[] = (topic.references as CustomTopicReference[]) ?? [];
       const needFetch = userRefs.filter((r) => r.kind !== "text");

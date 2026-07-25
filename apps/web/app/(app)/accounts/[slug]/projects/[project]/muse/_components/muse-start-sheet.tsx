@@ -298,6 +298,11 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
                     </button>
                   ))}
                 </div>
+                {hasYt && contentFilter === "image" ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    YouTube 没有图文，本次会跳过已选的 YouTube 对标账号
+                  </p>
+                ) : null}
               </Field>
             ) : null}
 

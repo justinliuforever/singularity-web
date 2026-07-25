@@ -586,8 +586,8 @@ export const adminRouter = router({
     .input(z.object({ limit: z.number().int().min(1).max(200).default(60) }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit ?? 60;
-      // onRequestError runs outside the auth context, so user_id stays null for now —
-      // no user join until a session-aware capture path fills it (kept as a schema slot).
+      // Route-handler/RSC throws come from onRequestError, which has no session, so email
+      // is present only on tRPC-captured rows.
       const rows = await db
         .select({
           id: errorEvents.id,
@@ -597,8 +597,10 @@ export const adminRouter = router({
           kind: errorEvents.kind,
           message: errorEvents.message,
           stack: errorEvents.stack,
+          email: users.email,
         })
         .from(errorEvents)
+        .leftJoin(users, eq(users.id, errorEvents.userId))
         .orderBy(desc(errorEvents.occurredAt))
         .limit(limit);
       const [counts] = await db
