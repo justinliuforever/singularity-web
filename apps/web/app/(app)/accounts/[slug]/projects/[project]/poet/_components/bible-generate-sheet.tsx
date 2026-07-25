@@ -208,6 +208,12 @@ export function BibleGenerateSheet({
             </Button>
           </div>
 
+          <p className="rounded-md bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            {mode === "idea"
+              ? "AI 会基于你的描述推断并补全成完整框架（受众、人设、内容方向等）——给的信息越少，AI 推断补充的部分越多。"
+              : "逐字保留文档内容，只归类整理、不改写不总结；每个数字都会与原文核对，存疑处生成后需要你逐项确认。"}
+          </p>
+
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="bible-name">名称（可选）</FieldLabel>
