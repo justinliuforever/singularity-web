@@ -87,6 +87,7 @@ import {
   deleteBibleInput,
   deleteCustomTopicInput,
   deleteScriptInput,
+  renameScriptInput,
   generateBibleInput,
   generateScriptFromCustomTopicInput,
   finalizeBibleImportInput,
@@ -2411,6 +2412,24 @@ export const appRouter = router({
             .set({ status: "analyzed", updatedAt: new Date() })
             .where(eq(poetCustomTopics.id, existing.customTopicId));
         }
+        return { id: existing.id };
+      }),
+
+    renameScript: protectedProcedure
+      .input(renameScriptInput)
+      .mutation(async ({ ctx, input }) => {
+        const [existing] = await db
+          .select({ id: poetScripts.id })
+          .from(poetScripts)
+          .innerJoin(channels, eq(channels.id, poetScripts.channelId))
+          .where(and(eq(poetScripts.id, input.scriptId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await db
+          .update(poetScripts)
+          .set({ name: input.name, updatedAt: new Date() })
+          .where(eq(poetScripts.id, input.scriptId));
         return { id: existing.id };
       }),
 

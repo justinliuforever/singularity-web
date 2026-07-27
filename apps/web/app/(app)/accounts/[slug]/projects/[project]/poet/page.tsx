@@ -23,6 +23,7 @@ import { db } from "@/lib/db";
 import { resolveOwnedProject } from "@/lib/account-access";
 
 import { DeleteScriptButton } from "./_components/delete-script-button";
+import { RenameScriptButton } from "./_components/rename-script-button";
 import { CustomTopicActions } from "./_components/custom-topic-actions";
 import { CustomTopicCreateSheet } from "./_components/custom-topic-create-sheet";
 
@@ -74,8 +75,14 @@ export default async function PoetChannelPage({ params }: Props) {
         .where(eq(poetCustomTopics.projectId, project.id))
         .orderBy(desc(poetCustomTopics.updatedAt)),
       db
-        .select()
+        .select({
+          script: poetScripts,
+          ideaTitle: museIdeas.storyAngle,
+          topicTitle: poetCustomTopics.topic,
+        })
         .from(poetScripts)
+        .leftJoin(museIdeas, eq(museIdeas.id, poetScripts.ideaId))
+        .leftJoin(poetCustomTopics, eq(poetCustomTopics.id, poetScripts.customTopicId))
         .where(eq(poetScripts.projectId, project.id))
         .orderBy(desc(poetScripts.generatedAt))
         .limit(20),
@@ -87,6 +94,34 @@ export default async function PoetChannelPage({ params }: Props) {
   // Must mirror what the writer resolves (project-bound SOP — incl. a competitor's — or the
   // own-channel ai_reference fallback); checking only own ai_reference warns "no SOP" falsely.
   const hasAiReferenceSop = primarySop != null;
+
+  // Scripts grouped under their source topic (Krista R5: scripts belong to the topic
+  // they came from). Key on the FK; SET NULL orphans collapse into one 来源已删除 group.
+  type ScriptRow = (typeof scripts)[number];
+  const scriptGroups: Array<{
+    key: string;
+    title: string;
+    topicId: string | null;
+    rows: ScriptRow[];
+  }> = [];
+  {
+    const groupIndex = new Map<string, number>();
+    for (const r of scripts) {
+      const key = r.script.ideaId ?? r.script.customTopicId ?? "orphan";
+      let idx = groupIndex.get(key);
+      if (idx === undefined) {
+        idx = scriptGroups.length;
+        groupIndex.set(key, idx);
+        scriptGroups.push({
+          key,
+          title: r.ideaTitle ?? r.topicTitle ?? "来源已删除",
+          topicId: r.script.customTopicId,
+          rows: [],
+        });
+      }
+      scriptGroups[idx]!.rows.push(r);
+    }
+  }
 
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col gap-8 p-6 sm:p-8">
@@ -307,39 +342,66 @@ export default async function PoetChannelPage({ params }: Props) {
 
       {scripts.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted-foreground">已生成脚本</h2>
-          <div className="flex flex-col gap-3">
-            {scripts.map((s) => (
-              <article
-                key={s.id}
-                className="flex items-start justify-between gap-3 rounded-lg border bg-card p-4 hover:bg-muted/30"
-              >
-                <Link
-                  href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet/scripts/${s.id}`}
-                  className="flex flex-1 flex-col gap-2 min-w-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-                      {s.language}
-                    </Badge>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {s.wordCount ?? "—"} {s.language === "zh" ? "字" : "词"}
-                    </span>
-                    {formatDurationLabel(s.durationSeconds) ? (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {formatDurationLabel(s.durationSeconds)}
-                      </span>
-                    ) : null}
-                    <span className="ml-auto font-mono text-xs text-muted-foreground">
-                      {formatDateTime(s.generatedAt)}
-                    </span>
-                  </div>
-                  <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                    {s.scriptText.slice(0, 240)}
-                  </p>
-                </Link>
-                <DeleteScriptButton scriptId={s.id} />
-              </article>
+          <h2 className="text-sm font-medium text-muted-foreground">已生成脚本 · 按选题归组</h2>
+          <div className="flex flex-col gap-5">
+            {scriptGroups.map((g) => (
+              <div key={g.key} className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  {g.topicId ? (
+                    <Link
+                      href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet/topics/${g.topicId}`}
+                      className="line-clamp-1 text-sm font-medium hover:underline"
+                    >
+                      {g.title}
+                    </Link>
+                  ) : (
+                    <span className="line-clamp-1 text-sm font-medium">{g.title}</span>
+                  )}
+                  <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+                    {g.rows.length} 稿
+                  </Badge>
+                </div>
+                <div className="ml-1.5 flex flex-col gap-2 border-l pl-4">
+                  {g.rows.map(({ script: s }) => (
+                    <article
+                      key={s.id}
+                      className="flex items-start justify-between gap-3 rounded-lg border bg-card p-4 hover:bg-muted/30"
+                    >
+                      <Link
+                        href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet/scripts/${s.id}`}
+                        className="flex flex-1 flex-col gap-2 min-w-0"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="line-clamp-1 text-sm font-medium">
+                            {s.name ?? `脚本 · ${formatDateTime(s.generatedAt)}`}
+                          </span>
+                          <Badge variant="secondary" className="shrink-0 font-mono text-[10px] uppercase">
+                            {s.language}
+                          </Badge>
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            {s.wordCount ?? "—"} {s.language === "zh" ? "字" : "词"}
+                          </span>
+                          {formatDurationLabel(s.durationSeconds) ? (
+                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                              {formatDurationLabel(s.durationSeconds)}
+                            </span>
+                          ) : null}
+                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
+                            {formatDateTime(s.generatedAt)}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                          {s.scriptText.slice(0, 240)}
+                        </p>
+                      </Link>
+                      <div className="flex items-center">
+                        <RenameScriptButton scriptId={s.id} currentName={s.name ?? ""} />
+                        <DeleteScriptButton scriptId={s.id} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </section>

@@ -100,6 +100,11 @@ export const deleteScriptInput = z.object({
   scriptId: z.string().uuid(),
 });
 
+export const renameScriptInput = z.object({
+  scriptId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+});
+
 export const analyzeCustomTopicInput = z.object({
   channelId: z.string().uuid(),
   projectId: z.string().uuid(),
