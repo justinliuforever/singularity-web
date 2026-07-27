@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import {
   channels,
+  clerkSops,
   clerkVideos,
   museIdeas,
   museMonitorVideos,
@@ -37,6 +38,8 @@ type Payload = {
   customTopicId?: string;
   language?: "en" | "zh";
   durationSeconds?: number;
+  // Explicit playbook pick (ownership checked at trigger time); omitted = project primary.
+  sopId?: string;
 };
 
 
@@ -238,7 +241,18 @@ export const generateScript = task({
       }
       const bible = resolvedBible.bible;
 
-      const sop = await resolvePrimarySop(db, projectId, channel.id);
+      // User-picked playbook wins; a row deleted since selection degrades to the primary.
+      let sop: { id: string; contentMd: string } | null = null;
+      if (payload.sopId) {
+        const [picked] = await db
+          .select({ id: clerkSops.id, contentMd: clerkSops.contentMd })
+          .from(clerkSops)
+          .where(eq(clerkSops.id, payload.sopId))
+          .limit(1);
+        if (picked) sop = picked;
+        else logger.warn(`Picked SOP ${payload.sopId} not found — falling back to project primary`);
+      }
+      if (!sop) sop = await resolvePrimarySop(db, projectId, channel.id);
       const sopText = sop?.contentMd ?? "";
       if (!sopText) {
         logger.warn(

@@ -7,7 +7,6 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
-  resolvePrimarySop,
   type CustomTopicReference,
 } from "@goooose/db";
 
@@ -39,7 +38,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
   const { user, channel, project } = await resolveOwnedProject(slug, projectSlug);
 
-  const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun, primarySop] =
+  const [activeBibleRow, approvedIdeas, customTopics, scripts, activeRun] =
     await Promise.all([
       db
         .select()
@@ -87,13 +86,9 @@ export default async function PoetChannelPage({ params }: Props) {
         .orderBy(desc(poetScripts.generatedAt))
         .limit(20),
       getActiveAgentRun(channel.id, user.id, "poet"),
-      resolvePrimarySop(db as unknown as Parameters<typeof resolvePrimarySop>[0], project.id, channel.id),
     ]);
 
   const activeBible = activeBibleRow[0] ?? null;
-  // Must mirror what the writer resolves (project-bound SOP — incl. a competitor's — or the
-  // own-channel ai_reference fallback); checking only own ai_reference warns "no SOP" falsely.
-  const hasAiReferenceSop = primarySop != null;
 
   // Scripts grouped under their source topic (Krista R5: scripts belong to the topic
   // they came from). Key on the FK; SET NULL orphans collapse into one 来源已删除 group.
@@ -191,7 +186,6 @@ export default async function PoetChannelPage({ params }: Props) {
                   ideaTitle={idea.storyAngle ?? "选题"}
                   disabled={!activeBible}
                   disabledReason={!activeBible ? "请先在账号页生成并选用频道圣经" : undefined}
-                  hasSop={hasAiReferenceSop}
                 />
               </article>
             ))}
@@ -259,11 +253,11 @@ export default async function PoetChannelPage({ params }: Props) {
                   <CustomTopicActions
                     channelId={channel.id}
                     projectId={project.id}
+                    channelSlug={channel.slug}
                     topicId={t.id}
                     topicLabel={t.topic}
                     status={t.status}
                     hasActiveBible={!!activeBible}
-                    hasSop={hasAiReferenceSop}
                   />
                 </header>
 

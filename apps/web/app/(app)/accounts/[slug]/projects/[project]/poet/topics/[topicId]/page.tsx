@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
-import { poetBible, poetCustomTopics, clerkSops, resolvePrimarySop } from "@goooose/db";
+import { poetBible, poetCustomTopics, clerkSops } from "@goooose/db";
 import type { CustomTopicReference } from "@goooose/db";
 
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +78,7 @@ export default async function PoetTopicDetailPage({ params }: Props) {
 
   if (!topic) notFound();
 
-  const [bible, sop, activeBibleRows, primarySop] = await Promise.all([
+  const [bible, sop, activeBibleRows] = await Promise.all([
     topic.bibleId
       ? db.select().from(poetBible).where(eq(poetBible.id, topic.bibleId)).limit(1).then((r) => r[0])
       : Promise.resolve(undefined),
@@ -92,9 +92,6 @@ export default async function PoetTopicDetailPage({ params }: Props) {
       .from(poetBible)
       .where(and(eq(poetBible.channelId, channel.id), eq(poetBible.isActive, true)))
       .limit(1),
-    // hasSop = what the writer resolves for THIS project (a bound competitor SOP counts),
-    // not just an own-channel ai_reference.
-    resolvePrimarySop(db as unknown as Parameters<typeof resolvePrimarySop>[0], project.id, channel.id),
   ]);
 
   return (
@@ -109,11 +106,11 @@ export default async function PoetTopicDetailPage({ params }: Props) {
           <CustomTopicActions
             channelId={channel.id}
             projectId={project.id}
+            channelSlug={channel.slug}
             topicId={topic.id}
             topicLabel={topic.topic}
             status={topic.status}
             hasActiveBible={activeBibleRows.length > 0}
-            hasSop={primarySop != null}
           />
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">

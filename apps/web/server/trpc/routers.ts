@@ -25,6 +25,7 @@ import {
   poetBible,
   poetCustomTopics,
   poetScripts,
+  resolvePrimarySop,
   projectCompetitors,
   projects,
   projectSops,
@@ -92,6 +93,7 @@ import {
   generateScriptFromCustomTopicInput,
   finalizeBibleImportInput,
   generateScriptInput,
+  poetSopOptionsInput,
   resolveImportFlagInput,
   switchActiveBibleInput,
   updateBibleInput,
@@ -2099,6 +2101,54 @@ export const appRouter = router({
         return activated;
       }),
 
+    // Options for the write-time playbook picker — every SOP the user owns, light rows
+    // only, plus which one the project resolves as primary today.
+    sopOptions: protectedProcedure
+      .input(poetSopOptionsInput)
+      .query(async ({ ctx, input }) => {
+        const [channel] = await db
+          .select({ id: channels.id })
+          .from(channels)
+          .where(and(eq(channels.id, input.channelId), eq(channels.userId, ctx.user.id)))
+          .limit(1);
+        if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
+
+        const [primary, options] = await Promise.all([
+          resolvePrimarySop(
+            db as unknown as Parameters<typeof resolvePrimarySop>[0],
+            input.projectId,
+            channel.id,
+          ),
+          db
+            .select({
+              id: clerkSops.id,
+              sopType: clerkSops.sopType,
+              language: clerkSops.language,
+              generatedAt: clerkSops.generatedAt,
+              group: sql<"single_video" | "competitor" | "own">`case
+                when ${clerkSops.sopType} = 'single_video' then 'single_video'
+                when ${clerkSops.competitorAccountId} is not null then 'competitor'
+                else 'own' end`,
+              label: sql<string>`coalesce(${clerkVideos.title}, ${channels.name}, ${ownAccounts.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未命名 SOP')`,
+            })
+            .from(clerkSops)
+            .leftJoin(channels, eq(channels.id, clerkSops.channelId))
+            .leftJoin(ownAccounts, eq(ownAccounts.id, clerkSops.ownAccountId))
+            .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+            .leftJoin(clerkVideos, eq(clerkVideos.id, clerkSops.videoId))
+            .where(
+              or(
+                eq(channels.userId, ctx.user.id),
+                eq(ownAccounts.userId, ctx.user.id),
+                eq(competitorAccounts.userId, ctx.user.id),
+              ),
+            )
+            .orderBy(desc(clerkSops.generatedAt)),
+        ]);
+        return { primarySopId: primary?.id ?? null, options };
+      }),
+
     generateScript: protectedProcedure
       .input(generateScriptInput)
       .mutation(async ({ ctx, input }) => {
@@ -2109,6 +2159,30 @@ export const appRouter = router({
           .limit(1);
         if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
         await assertProjectOwner(ctx.user.id, input.projectId, channel.id);
+
+        // Explicit playbook pick must be one of the user's own SOPs (any owner chain).
+        if (input.sopId) {
+          const [sop] = await db
+            .select({ id: clerkSops.id })
+            .from(clerkSops)
+            .leftJoin(channels, eq(channels.id, clerkSops.channelId))
+            .leftJoin(ownAccounts, eq(ownAccounts.id, clerkSops.ownAccountId))
+            .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+            .where(
+              and(
+                eq(clerkSops.id, input.sopId),
+                or(
+                  eq(channels.userId, ctx.user.id),
+                  eq(ownAccounts.userId, ctx.user.id),
+                  eq(competitorAccounts.userId, ctx.user.id),
+                ),
+              ),
+            )
+            .limit(1);
+          if (!sop) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "打法参考 SOP 不存在或不属于你" });
+          }
+        }
 
         const [activeBible] = await db
           .select({ id: poetBible.id })
@@ -2159,11 +2233,13 @@ export const appRouter = router({
             ideaId: input.ideaId,
             language: input.language,
             durationSeconds: input.durationSeconds,
+            ...(input.sopId ? { sopId: input.sopId } : {}),
           },
           payload: {
             ideaId: input.ideaId,
             language: input.language,
             durationSeconds: input.durationSeconds,
+            sopId: input.sopId,
           },
         });
       }),
@@ -2474,6 +2550,30 @@ export const appRouter = router({
           });
         }
 
+        // Explicit playbook pick must be one of the user's own SOPs (any owner chain).
+        if (input.sopId) {
+          const [sop] = await db
+            .select({ id: clerkSops.id })
+            .from(clerkSops)
+            .leftJoin(channels, eq(channels.id, clerkSops.channelId))
+            .leftJoin(ownAccounts, eq(ownAccounts.id, clerkSops.ownAccountId))
+            .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+            .where(
+              and(
+                eq(clerkSops.id, input.sopId),
+                or(
+                  eq(channels.userId, ctx.user.id),
+                  eq(ownAccounts.userId, ctx.user.id),
+                  eq(competitorAccounts.userId, ctx.user.id),
+                ),
+              ),
+            )
+            .limit(1);
+          if (!sop) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "打法参考 SOP 不存在或不属于你" });
+          }
+        }
+
         await assertNoActiveRun(channel.id, "poet");
 
         const chargeDuration =
@@ -2500,11 +2600,13 @@ export const appRouter = router({
             customTopicId: input.topicId,
             language: input.language,
             durationSeconds: input.durationSeconds,
+            ...(input.sopId ? { sopId: input.sopId } : {}),
           },
           payload: {
             customTopicId: input.topicId,
             language: input.language,
             durationSeconds: input.durationSeconds,
+            sopId: input.sopId,
           },
         });
       }),
