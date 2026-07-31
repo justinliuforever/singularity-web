@@ -65,8 +65,10 @@ import { asPositiveNumber, parseDurationToSec, safeText, sleep } from "@goooose/
 
 const ASR_MAX_DURATION_SEC = 60 * 60;
 const DEFAULT_NUM_IDEAS = 5;
-// DeepSeek handles this comfortably; the ceiling is upstream rate limit, not the DB.
-const IDEA_CONCURRENCY = 4;
+// Matches the width analyze-channel has run its ASR+LLM loop at in production for weeks.
+const IDEA_CONCURRENCY = 8;
+// Lower than ideas: each of these holds a downloaded file on disk while it transcribes.
+const VIDEO_CONCURRENCY = 4;
 const CLASSIFY_ETA_SHARE = 0.35;
 
 type Payload = {
@@ -101,8 +103,9 @@ type Payload = {
 export const monitorCompetitors = task({
   id: "muse-monitor-competitors",
   queue: userRunsQueue,
-  // Serial per-video pipeline (I/O + LLM bound); one audio buffer at a time fits medium-1x's 2GB.
-  machine: { preset: "medium-1x" },
+  // VIDEO_CONCURRENCY downloads stream straight to disk, so RAM is not the constraint — the
+  // second vCPU is, for the ffmpeg chunking that overlapping long audio triggers.
+  machine: { preset: "medium-2x" },
   // 4h headroom for 10-20 videos with YouTube CDN throttle (Trigger.dev Hobby).
   maxDuration: 14400,
   run: async (payload: Payload) => {
@@ -587,249 +590,263 @@ export const monitorCompetitors = task({
         return frac > 0.05 ? { estSecondsRemaining: Math.max(0, Math.round(el / frac - el)) } : {};
       };
 
-      for (let i = 0; i < fresh.length; i++) {
-        const ref = fresh[i]!;
-        const stepBase = { current: i + 1, total: fresh.length };
-        await metadata.set("progress", {
-          ...stepBase,
-          phase: "fetching video metadata",
-          detail: `[${i + 1}/${fresh.length}] ${ref.title}`,
-          ...etaField((CLASSIFY_ETA_SHARE * i) / fresh.length),
+      // Each video is a download, an ASR call and a classify call — independent, and mostly
+      // spent waiting. Progress advances only in finally: mid-item writes from overlapping
+      // videos would otherwise walk the bar backwards.
+      let completedVideos = 0;
+      const videoStep = (phase: string, detail: string) =>
+        metadata.set("progress", {
+          current: completedVideos,
+          total: fresh.length,
+          phase,
+          detail,
+          ...etaField((CLASSIFY_ETA_SHARE * completedVideos) / fresh.length),
         });
+      const videoLimit = pLimit(VIDEO_CONCURRENCY);
+      await Promise.all(
+        fresh.map((ref) =>
+          videoLimit(async () => {
+            await videoStep(
+              "fetching video metadata",
+              `[${completedVideos}/${fresh.length}] ${ref.title}`,
+            );
 
-        try {
-          let title: string;
-          let views: number;
-          let durationSec: number;
-          let url: string;
-          let sourceChannelName: string | null;
-          let finalTranscript: string | null = null;
-          let contentType: "video" | "xhs_video" | "xhs_image" | "douyin_video" | "douyin_image" =
-            "video";
+            try {
+              let title: string;
+              let views: number;
+              let durationSec: number;
+              let url: string;
+              let sourceChannelName: string | null;
+              let finalTranscript: string | null = null;
+              let contentType: "video" | "xhs_video" | "xhs_image" | "douyin_video" | "douyin_image" =
+                "video";
 
-          if (ref.platform === "douyin") {
-            const listItem = ref.douyinVideo!;
-            contentType = listItem.contentType;
-            title = listItem.title || ref.title || "(untitled)";
-            views = listItem.engagementScore;
-            durationSec = listItem.durationSec ?? 0;
-            url = listItem.videoUrl;
-            sourceChannelName = listItem.authorNickname || null;
-            const textBase = listItem.desc.trim() || title;
+              if (ref.platform === "douyin") {
+                const listItem = ref.douyinVideo!;
+                contentType = listItem.contentType;
+                title = listItem.title || ref.title || "(untitled)";
+                views = listItem.engagementScore;
+                durationSec = listItem.durationSec ?? 0;
+                url = listItem.videoUrl;
+                sourceChannelName = listItem.authorNickname || null;
+                const textBase = listItem.desc.trim() || title;
 
-            if (contentType === "douyin_video") {
-              await metadata.set("progress", {
-                ...stepBase,
-                phase: "transcribing audio",
-                detail: `[${i + 1}/${fresh.length}] ${title} · 抖音音频转写中`,
-              });
-              // List items carry no play URLs (and may omit duration) — fetch the detail
-              // unless link resolution already carried a fresh play source. Mirrors Clerk.
-              const detail = ref.douyinPlay
-                ? { durationSec: listItem.durationSec, play: ref.douyinPlay }
-                : await getDouyinVideoDetail(listItem.awemeId).catch((err: Error) => {
-                    logger.warn(
-                      `Douyin detail failed for ${listItem.awemeId}: ${err.message?.slice(0, 120)}`,
-                    );
-                    return null;
-                  });
-              if (detail) {
-                durationSec = detail.durationSec ?? durationSec;
-                const streams = buildDouyinAsrStreams(detail.play);
-                const asr =
-                  streams.length > 0 && durationSec <= ASR_MAX_DURATION_SEC
-                    ? await transcribeFromStreams(streams, {
-                        logger,
-                        durationSec: durationSec || undefined,
-                        tag: `Douyin ${listItem.awemeId}`,
-                        preserveOrder: true,
-                      })
-                    : null;
-                finalTranscript = asr
-                  ? `${textBase}\n\n[Audio Transcript]\n${asr.text}`.trim()
-                  : textBase || null;
+                if (contentType === "douyin_video") {
+                  await videoStep(
+                    "transcribing audio",
+                    `[${completedVideos}/${fresh.length}] ${title} · 抖音音频转写中`,
+                  );
+                  // List items carry no play URLs (and may omit duration) — fetch the detail
+                  // unless link resolution already carried a fresh play source. Mirrors Clerk.
+                  const detail = ref.douyinPlay
+                    ? { durationSec: listItem.durationSec, play: ref.douyinPlay }
+                    : await getDouyinVideoDetail(listItem.awemeId).catch((err: Error) => {
+                        logger.warn(
+                          `Douyin detail failed for ${listItem.awemeId}: ${err.message?.slice(0, 120)}`,
+                        );
+                        return null;
+                      });
+                  if (detail) {
+                    durationSec = detail.durationSec ?? durationSec;
+                    const streams = buildDouyinAsrStreams(detail.play);
+                    const asr =
+                      streams.length > 0 && durationSec <= ASR_MAX_DURATION_SEC
+                        ? await transcribeFromStreams(streams, {
+                            logger,
+                            durationSec: durationSec || undefined,
+                            tag: `Douyin ${listItem.awemeId}`,
+                            preserveOrder: true,
+                          })
+                        : null;
+                    finalTranscript = asr
+                      ? `${textBase}\n\n[Audio Transcript]\n${asr.text}`.trim()
+                      : textBase || null;
+                  } else {
+                    finalTranscript = textBase || null;
+                  }
+                } else {
+                  finalTranscript = textBase || null;
+                }
+              } else if (ref.platform === "xhs") {
+                const note = ref.xhsNote!;
+                contentType = note.type === "video" ? "xhs_video" : "xhs_image";
+                title = note.title || ref.title || "(untitled)";
+                views = note.engagementScore;
+                durationSec = note.durationSec ?? 0;
+                url = note.noteUrl;
+                sourceChannelName = note.channelName || null;
+
+                const titleAndDesc = [note.title, note.desc]
+                  .filter((s) => s.trim().length > 0)
+                  .join("\n\n");
+
+                if (
+                  note.type === "video" &&
+                  note.videoStreams.length > 0 &&
+                  note.durationSec &&
+                  note.durationSec <= ASR_MAX_DURATION_SEC
+                ) {
+                  await videoStep(
+                    "transcribing audio",
+                    `[${completedVideos}/${fresh.length}] ${note.title} · XHS 音频转写中`,
+                  );
+                  const asr = await transcribeFromStreams(
+                    note.videoStreams.map((s) => ({
+                      url: s.masterUrl,
+                      mimeType: "video/mp4",
+                      sizeHint: s.size,
+                      label: `${s.codec} ${s.width}x${s.height}`,
+                    })),
+                    {
+                      logger,
+                      durationSec: note.durationSec ?? undefined,
+                      tag: `XHS ${note.noteId}`,
+                    },
+                  );
+                  finalTranscript = asr
+                    ? `${titleAndDesc}\n\n[Audio Transcript]\n${asr.text}`.trim()
+                    : titleAndDesc || null;
+                } else {
+                  finalTranscript = titleAndDesc || null;
+                }
               } else {
-                finalTranscript = textBase || null;
+                if (!proxyPool) {
+                  throw new Error("YouTube path requires proxyPool — not loaded");
+                }
+                // Metadata is enrichment only — degrade to null instead of failing the video.
+                const info = await withProxyRetry(
+                  proxyPool,
+                  (session) => getVideoMetadataYtdlp(ref.videoId, session.url),
+                  { attempts: 3, okBytes: 10_000 },
+                ).catch((err: Error) => {
+                  logger.warn(`yt-dlp metadata failed for ${ref.videoId}: ${err.message?.slice(0, 120)}`);
+                  return null;
+                });
+
+                const candidateDuration =
+                  asPositiveNumber(info?.duration_sec ?? null) ??
+                  asPositiveNumber(parseDurationToSec(ref.duration)) ??
+                  0;
+                if (candidateDuration === 0 || candidateDuration <= ASR_MAX_DURATION_SEC) {
+                  await videoStep(
+                    "transcribing audio",
+                    `[${completedVideos}/${fresh.length}] ${ref.title} · 抓字幕或音频转写中`,
+                  );
+                  const asr = await transcribeYoutubeVideo(ref.videoId, proxyPool, {
+                    logger,
+                    durationSec: candidateDuration || undefined,
+                    qwenFirst: likelyChineseText(ref.title),
+                  });
+                  if (asr) {
+                    finalTranscript = renderTranscriptWithTimestamps(asr.text, asr.words);
+                  }
+                }
+
+                title = safeText(info?.title ?? null) ?? safeText(ref.title) ?? "(untitled)";
+                views = asPositiveNumber(info?.views ?? null) ?? asPositiveNumber(ref.viewCount) ?? 0;
+                durationSec = candidateDuration;
+                url = safeText(info?.url ?? null) ?? `https://www.youtube.com/watch?v=${ref.videoId}`;
+                sourceChannelName = safeText(info?.channel_name ?? null) ?? null;
               }
-            } else {
-              finalTranscript = textBase || null;
-            }
-          } else if (ref.platform === "xhs") {
-            const note = ref.xhsNote!;
-            contentType = note.type === "video" ? "xhs_video" : "xhs_image";
-            title = note.title || ref.title || "(untitled)";
-            views = note.engagementScore;
-            durationSec = note.durationSec ?? 0;
-            url = note.noteUrl;
-            sourceChannelName = note.channelName || null;
 
-            const titleAndDesc = [note.title, note.desc]
-              .filter((s) => s.trim().length > 0)
-              .join("\n\n");
-
-            if (
-              note.type === "video" &&
-              note.videoStreams.length > 0 &&
-              note.durationSec &&
-              note.durationSec <= ASR_MAX_DURATION_SEC
-            ) {
-              await metadata.set("progress", {
-                ...stepBase,
-                phase: "transcribing audio",
-                detail: `[${i + 1}/${fresh.length}] ${note.title} · XHS 音频转写中`,
-              });
-              const asr = await transcribeFromStreams(
-                note.videoStreams.map((s) => ({
-                  url: s.masterUrl,
-                  mimeType: "video/mp4",
-                  sizeHint: s.size,
-                  label: `${s.codec} ${s.width}x${s.height}`,
-                })),
-                {
-                  logger,
-                  durationSec: note.durationSec ?? undefined,
-                  tag: `XHS ${note.noteId}`,
-                },
+              await videoStep(
+                "classifying video",
+                `[${completedVideos}/${fresh.length}] ${ref.title} · AI 分类中`,
               );
-              finalTranscript = asr
-                ? `${titleAndDesc}\n\n[Audio Transcript]\n${asr.text}`.trim()
-                : titleAndDesc || null;
-            } else {
-              finalTranscript = titleAndDesc || null;
-            }
-          } else {
-            if (!proxyPool) {
-              throw new Error("YouTube path requires proxyPool — not loaded");
-            }
-            // Metadata is enrichment only — degrade to null instead of failing the video.
-            const info = await withProxyRetry(
-              proxyPool,
-              (session) => getVideoMetadataYtdlp(ref.videoId, session.url),
-              { attempts: 3, okBytes: 10_000 },
-            ).catch((err: Error) => {
-              logger.warn(`yt-dlp metadata failed for ${ref.videoId}: ${err.message?.slice(0, 120)}`);
-              return null;
-            });
-
-            const candidateDuration =
-              asPositiveNumber(info?.duration_sec ?? null) ??
-              asPositiveNumber(parseDurationToSec(ref.duration)) ??
-              0;
-            if (candidateDuration === 0 || candidateDuration <= ASR_MAX_DURATION_SEC) {
-              await metadata.set("progress", {
-                ...stepBase,
-                phase: "transcribing audio",
-                detail: `[${i + 1}/${fresh.length}] ${ref.title} · 抓字幕或音频转写中`,
-              });
-              const asr = await transcribeYoutubeVideo(ref.videoId, proxyPool, {
-                logger,
-                durationSec: candidateDuration || undefined,
-                qwenFirst: likelyChineseText(ref.title),
-              });
-              if (asr) {
-                finalTranscript = renderTranscriptWithTimestamps(asr.text, asr.words);
-              }
-            }
-
-            title = safeText(info?.title ?? null) ?? safeText(ref.title) ?? "(untitled)";
-            views = asPositiveNumber(info?.views ?? null) ?? asPositiveNumber(ref.viewCount) ?? 0;
-            durationSec = candidateDuration;
-            url = safeText(info?.url ?? null) ?? `https://www.youtube.com/watch?v=${ref.videoId}`;
-            sourceChannelName = safeText(info?.channel_name ?? null) ?? null;
-          }
-
-          await metadata.set("progress", {
-            ...stepBase,
-            phase: "classifying video",
-            detail: `[${i + 1}/${fresh.length}] ${ref.title} · AI 分类中`,
-          });
-          // Analysis follows the SOURCE language — forcing a zh read of an English video
-          // translates and distorts it; idea generation uses the user's target language.
-          const sourceLang = likelyChineseText(
-            (finalTranscript && finalTranscript.trim()) || title,
-          )
-            ? "zh"
-            : "en";
-          const cls = await classifyVideo({
-            channelDescription,
-            title,
-            channelName: sourceChannelName ?? "(unknown)",
-            views,
-            durationSec,
-            transcript: finalTranscript,
-            language: sourceLang,
-          });
-          // User-specified links skip the relevance filter — but only if there is something to
-          // ideate from. Marking a too-short transcript relevant just parks it as an orphan for
-          // the next batch patrol to pick up under a looser floor.
-          const relevantVerdict = linksMode
-            ? Boolean(finalTranscript && isRealTranscript(finalTranscript, contentType))
-            : cls.relevant;
-
-          const [inserted] = await db
-            .insert(museMonitorVideos)
-            .values({
-              channelId: channel.id,
-              projectId,
-              competitorAccountId: ref.competitorAccountId,
-              platformVideoId: ref.videoId,
-              title,
-              url,
-              sourceChannelName,
-              durationSec: durationSec || null,
-              transcript: safeText(finalTranscript),
-              relevant: relevantVerdict,
-              topicClassification: safeText(cls.topic_classification),
-              rejectionReason: linksMode ? null : safeText(cls.rejection_reason),
-              runId: payload.runId,
-            })
-            .onConflictDoUpdate({
-              target: [museMonitorVideos.projectId, museMonitorVideos.platformVideoId],
-              set: {
-                projectId,
-                competitorAccountId: ref.competitorAccountId,
-                relevant: relevantVerdict,
-                topicClassification: safeText(cls.topic_classification),
-                rejectionReason: linksMode ? null : safeText(cls.rejection_reason),
-                transcript: safeText(finalTranscript),
-                runId: payload.runId,
-              },
-            })
-            .returning({ id: museMonitorVideos.id });
-
-          classified++;
-          if (relevantVerdict && inserted) {
-            relevant++;
-            if (finalTranscript && isRealTranscript(finalTranscript, contentType)) {
-              relevantRows.push({
-                monitorVideoId: inserted.id,
+              // Analysis follows the SOURCE language — forcing a zh read of an English video
+              // translates and distorts it; idea generation uses the user's target language.
+              const sourceLang = likelyChineseText(
+                (finalTranscript && finalTranscript.trim()) || title,
+              )
+                ? "zh"
+                : "en";
+              const cls = await classifyVideo({
+                channelDescription,
                 title,
-                sourceChannelName,
+                channelName: sourceChannelName ?? "(unknown)",
                 views,
                 durationSec,
                 transcript: finalTranscript,
+                language: sourceLang,
               });
-            } else {
-              skippedShortTranscript++;
-              logger.warn(
-                `Video ${ref.videoId} ("${title}") marked relevant but transcript ${
-                  finalTranscript ? `only ${finalTranscript.length} chars` : "missing"
-                } — skipping idea gen`,
+              // User-specified links skip the relevance filter — but only if there is something to
+              // ideate from. Marking a too-short transcript relevant just parks it as an orphan for
+              // the next batch patrol to pick up under a looser floor.
+              const relevantVerdict = linksMode
+                ? Boolean(finalTranscript && isRealTranscript(finalTranscript, contentType))
+                : cls.relevant;
+
+              const [inserted] = await db
+                .insert(museMonitorVideos)
+                .values({
+                  channelId: channel.id,
+                  projectId,
+                  competitorAccountId: ref.competitorAccountId,
+                  platformVideoId: ref.videoId,
+                  title,
+                  url,
+                  sourceChannelName,
+                  durationSec: durationSec || null,
+                  transcript: safeText(finalTranscript),
+                  relevant: relevantVerdict,
+                  topicClassification: safeText(cls.topic_classification),
+                  rejectionReason: linksMode ? null : safeText(cls.rejection_reason),
+                  runId: payload.runId,
+                })
+                .onConflictDoUpdate({
+                  target: [museMonitorVideos.projectId, museMonitorVideos.platformVideoId],
+                  set: {
+                    projectId,
+                    competitorAccountId: ref.competitorAccountId,
+                    relevant: relevantVerdict,
+                    topicClassification: safeText(cls.topic_classification),
+                    rejectionReason: linksMode ? null : safeText(cls.rejection_reason),
+                    transcript: safeText(finalTranscript),
+                    runId: payload.runId,
+                  },
+                })
+                .returning({ id: museMonitorVideos.id });
+
+              classified++;
+              if (relevantVerdict && inserted) {
+                relevant++;
+                if (finalTranscript && isRealTranscript(finalTranscript, contentType)) {
+                  relevantRows.push({
+                    monitorVideoId: inserted.id,
+                    title,
+                    sourceChannelName,
+                    views,
+                    durationSec,
+                    transcript: finalTranscript,
+                  });
+                } else {
+                  skippedShortTranscript++;
+                  logger.warn(
+                    `Video ${ref.videoId} ("${title}") marked relevant but transcript ${
+                      finalTranscript ? `only ${finalTranscript.length} chars` : "missing"
+                    } — skipping idea gen`,
+                  );
+                }
+              }
+
+              await db
+                .update(pipelineRuns)
+                .set({ progress: classified })
+                .where(eq(pipelineRuns.id, payload.runId));
+            } catch (err) {
+              logger.error(`Video ${ref.videoId} failed`, {
+                message: (err as Error).message?.slice(0, 500),
+              });
+            } finally {
+              completedVideos++;
+              await videoStep(
+                "classifying video",
+                `[${completedVideos}/${fresh.length}] ${ref.title}`,
               );
             }
-          }
-
-          await db
-            .update(pipelineRuns)
-            .set({ progress: classified })
-            .where(eq(pipelineRuns.id, payload.runId));
-        } catch (err) {
-          logger.error(`Video ${ref.videoId} failed`, {
-            message: (err as Error).message?.slice(0, 500),
-          });
-        }
-        if (i < fresh.length - 1) await sleep(1500);
-      }
+          }),
+        ),
+      );
 
       // Recovery: pull DB rows that are relevant but never got ideas (prior
       // run killed by MAX_DURATION_EXCEEDED before idea-gen). Scope to projectId
