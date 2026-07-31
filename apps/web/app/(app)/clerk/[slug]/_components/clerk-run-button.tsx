@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
+import { useVisibleRefresh } from "@/hooks/use-visible-refresh";
 import { trpc } from "@/lib/trpc";
 
 import { ClerkPipelineProgress } from "./clerk-pipeline-progress";
@@ -83,10 +84,9 @@ export function ClerkRunButton({
       startedAt={startedAt}
       onCancel={() => cancel.mutate({ runId: active.runId })}
       canceling={cancel.isPending}
-      onProgressTick={() => {
-        utils.invalidate();
-        router.refresh();
-      }}
+      // Mid-run only the server-rendered table moves; the tRPC queries on this page settle at
+      // start and end, so a bare invalidate() here just refetches them on every tick.
+      onProgressTick={() => router.refresh()}
       onSettled={(ok, message) => {
         setActive(null);
         setStartedAt(null);
@@ -146,25 +146,28 @@ function ClerkRunProgress({
     throttleInMs: 500,
   });
 
-  // Tick only when phase actually changes — depending on inline callback refs (new each render) causes a refresh loop.
-  const phase = (run?.metadata?.progress as ProgressPayload | undefined)?.phase;
+  // Depending on inline callback refs (new each render) causes a refresh loop.
+  const progressMeta = run?.metadata?.progress as ProgressPayload | undefined;
+  const phase = progressMeta?.phase;
+  const current = progressMeta?.current;
   const lastPhaseRef = useRef<string | undefined>(undefined);
+  const lastKeyRef = useRef<string | undefined>(undefined);
   const tickRef = useRef(onProgressTick);
   useEffect(() => {
     tickRef.current = onProgressTick;
   });
-  useEffect(() => {
-    if (phase && phase !== lastPhaseRef.current) {
-      lastPhaseRef.current = phase;
-      tickRef.current(phase);
-    }
-  }, [phase]);
+  const requestRefresh = useVisibleRefresh(() => tickRef.current(lastPhaseRef.current));
 
-  // Per-video rows land continuously within one phase, so phase ticks alone leave the table stale.
+  // Rows land within one phase, so phase alone leaves the table stale. `current` is not
+  // monotonic — concurrent items re-emit a stale base — so this over-fires, never misses.
   useEffect(() => {
-    const id = setInterval(() => tickRef.current(lastPhaseRef.current), 5_000);
-    return () => clearInterval(id);
-  }, []);
+    if (phase === undefined && current === undefined) return;
+    const key = `${phase ?? ""}:${current ?? ""}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
+    lastPhaseRef.current = phase;
+    requestRefresh();
+  }, [phase, current, requestRefresh]);
 
   useEffect(() => {
     if (error) {

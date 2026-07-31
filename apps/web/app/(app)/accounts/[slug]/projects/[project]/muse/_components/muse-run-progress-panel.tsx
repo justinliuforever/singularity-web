@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EtaHint } from "@/components/eta-hint";
 import { SuccessCheck } from "@/components/success-check";
+import { useVisibleRefresh } from "@/hooks/use-visible-refresh";
 import { trpc } from "@/lib/trpc";
 
 const MUSE_STAGES: Stage[] = [
@@ -142,26 +143,15 @@ export function MuseRunProgressPanel({
   const phaseLabel = done ? "巡视完成" : translatePhase(phase);
 
   // Phase alone is too coarse — a single phase can sit on ASR for 90s+ while counts move.
-  const lastPhaseRef = useRef<string | undefined>(undefined);
-  const lastCurrentRef = useRef<number>(0);
+  // Mid-run only the server tree moves, so this refreshes without invalidating tRPC.
+  const requestRefresh = useVisibleRefresh(() => router.refresh());
+  const lastKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    const phaseChanged = phase && phase !== lastPhaseRef.current;
-    const currentChanged = current !== lastCurrentRef.current;
-    if (phaseChanged || currentChanged) {
-      lastPhaseRef.current = phase;
-      lastCurrentRef.current = current;
-      utils.invalidate();
-      router.refresh();
-    }
-  }, [phase, current, utils, router]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      utils.invalidate();
-      router.refresh();
-    }, 5000);
-    return () => clearInterval(id);
-  }, [utils, router]);
+    const key = `${phase ?? ""}:${current}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
+    requestRefresh();
+  }, [phase, current, requestRefresh]);
 
   useEffect(() => {
     if (error) {
