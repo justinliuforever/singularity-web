@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { channelSeries, clerkSops, clerkVideos } from "@goooose/db";
@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getActiveAgentRun } from "@/lib/agent-run";
+import { attachRealtimeToken, findActiveAgentRun } from "@/lib/agent-run";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { cleanProfileName } from "@/lib/display-name";
@@ -44,9 +44,23 @@ export default async function ClerkChannelPage({ params }: Props) {
   const itemUnit = `${unit.measure}${unit.noun}`;
   const itemNoun = unit.noun;
 
-  const [videos, sops, activeRun, clerkLock, seriesRows] = await Promise.all([
+  const [videos, sops, clerkLock, seriesRows] = await Promise.all([
+    // Projected, not select(): transcript alone is most of the row, and this list only needs
+    // to know whether one exists. The full text is read on the video detail page.
     db
-      .select()
+      .select({
+        id: clerkVideos.id,
+        platformVideoId: clerkVideos.platformVideoId,
+        title: clerkVideos.title,
+        views: clerkVideos.views,
+        durationSec: clerkVideos.durationSec,
+        contentType: clerkVideos.contentType,
+        transcriptSource: clerkVideos.transcriptSource,
+        openingHookType: clerkVideos.openingHookType,
+        coverDiagnosis: clerkVideos.coverDiagnosis,
+        analyzedAt: clerkVideos.analyzedAt,
+        transcript: sql<boolean>`${clerkVideos.transcript} is not null`,
+      })
       .from(clerkVideos)
       .where(eq(clerkVideos.channelId, channel.id))
       .orderBy(desc(clerkVideos.views)),
@@ -55,8 +69,9 @@ export default async function ClerkChannelPage({ params }: Props) {
       .from(clerkSops)
       .where(eq(clerkSops.channelId, channel.id))
       .orderBy(desc(clerkSops.generatedAt)),
-    getActiveAgentRun(channel.id, user.id, "clerk", "clerk-analyze-channel"),
-    getActiveAgentRun(channel.id, user.id, "clerk"),
+    // assertNoActiveRun blocks any second clerk run on the same owner, so the newest clerk row
+    // is the only one — one lookup answers both "is it ours" and "is something else holding it".
+    findActiveAgentRun(channel.id, user.id, "clerk"),
     channel.platform === "youtube"
       ? db
           .select()
@@ -65,6 +80,9 @@ export default async function ClerkChannelPage({ params }: Props) {
           .orderBy(desc(channelSeries.videoCount))
       : Promise.resolve([]),
   ]);
+
+  const activeRun =
+    clerkLock?.command === "clerk-analyze-channel" ? await attachRealtimeToken(clerkLock) : null;
 
   const sopOrder: Record<string, number> = {
     human: 0,

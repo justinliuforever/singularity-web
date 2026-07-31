@@ -7,17 +7,28 @@ import { channels, competitorAccounts, pipelineRuns } from "@goooose/db";
 
 import { db } from "./db";
 
-export type ActiveAgentRun = {
+export type ActiveAgentRunRow = {
   runId: string;
   triggerRunId: string;
-  publicAccessToken: string;
   command: string;
   startedAt: Date;
 };
 
+export type ActiveAgentRun = ActiveAgentRunRow & { publicAccessToken: string };
+
 export type AgentRunOwner = { channelId: string } | { competitorAccountId: string };
 
-export async function getActiveAgentRun(
+// Minting is a blocking hkg1 -> Trigger.dev round trip, so the lookup is separate: a page that
+// needs the run only to decide whether something else is holding the lock must not pay for it.
+export async function attachRealtimeToken(row: ActiveAgentRunRow): Promise<ActiveAgentRun> {
+  const publicAccessToken = await auth.createPublicToken({
+    scopes: { read: { runs: [row.triggerRunId] } },
+    expirationTime: "1h",
+  });
+  return { ...row, publicAccessToken };
+}
+
+export async function findActiveAgentRun(
   owner: string | AgentRunOwner,
   userId: string,
   agent: "clerk" | "muse" | "poet",
@@ -25,7 +36,7 @@ export async function getActiveAgentRun(
   command?: string,
   // Bible runs carry no projectId, so strict equality would hide them from the Poet page.
   projectId?: string,
-): Promise<ActiveAgentRun | null> {
+): Promise<ActiveAgentRunRow | null> {
   const ownerObj: AgentRunOwner = typeof owner === "string" ? { channelId: owner } : owner;
   const ownerCond =
     "channelId" in ownerObj
@@ -66,16 +77,21 @@ export async function getActiveAgentRun(
   const triggerRunId = (active.configJson as { triggerRunId?: string } | null)?.triggerRunId;
   if (!triggerRunId) return null;
 
-  const token = await auth.createPublicToken({
-    scopes: { read: { runs: [triggerRunId] } },
-    expirationTime: "1h",
-  });
-
   return {
     runId: active.id,
     triggerRunId,
-    publicAccessToken: token,
     command: active.command,
     startedAt: active.startedAt,
   };
+}
+
+export async function getActiveAgentRun(
+  owner: string | AgentRunOwner,
+  userId: string,
+  agent: "clerk" | "muse" | "poet",
+  command?: string,
+  projectId?: string,
+): Promise<ActiveAgentRun | null> {
+  const row = await findActiveAgentRun(owner, userId, agent, command, projectId);
+  return row ? attachRealtimeToken(row) : null;
 }

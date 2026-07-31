@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { clerkSops, clerkVideos, competitorAccounts } from "@goooose/db";
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { followerNoun, formatDuration, formatFollowerCount, formatViews } from "@/lib/format-count";
 import { PLATFORM_CONTENT_UNIT, PLATFORM_LABEL, PLATFORM_METRIC_LABEL } from "@/lib/platform";
-import { getActiveAgentRun } from "@/lib/agent-run";
+import { attachRealtimeToken, findActiveAgentRun } from "@/lib/agent-run";
 import { xhsGoHref } from "@/lib/xhs-go";
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -56,9 +56,22 @@ export default async function ClerkCompetitorPage({ params }: Props) {
   const unit = PLATFORM_CONTENT_UNIT[competitor.platform];
   const itemUnit = `${unit.measure}${unit.noun}`;
   const itemNoun = unit.noun;
-  const [videos, sops, activeRun, clerkLock] = await Promise.all([
+  const [videos, sops, clerkLock] = await Promise.all([
+    // Projected, not select(): transcript alone is most of the row, and this list only needs
+    // to know whether one exists. The full text is read on the video detail page.
     db
-      .select()
+      .select({
+        id: clerkVideos.id,
+        title: clerkVideos.title,
+        url: clerkVideos.url,
+        views: clerkVideos.views,
+        durationSec: clerkVideos.durationSec,
+        contentType: clerkVideos.contentType,
+        transcriptSource: clerkVideos.transcriptSource,
+        openingHookType: clerkVideos.openingHookType,
+        analyzedAt: clerkVideos.analyzedAt,
+        transcript: sql<boolean>`${clerkVideos.transcript} is not null`,
+      })
       .from(clerkVideos)
       .where(eq(clerkVideos.competitorAccountId, competitor.id))
       .orderBy(desc(clerkVideos.views)),
@@ -67,9 +80,13 @@ export default async function ClerkCompetitorPage({ params }: Props) {
       .from(clerkSops)
       .where(eq(clerkSops.competitorAccountId, competitor.id))
       .orderBy(desc(clerkSops.generatedAt)),
-    getActiveAgentRun({ competitorAccountId: competitor.id }, user.id, "clerk", "clerk-analyze-channel"),
-    getActiveAgentRun({ competitorAccountId: competitor.id }, user.id, "clerk"),
+    // assertNoActiveRun blocks any second clerk run on the same owner, so the newest clerk row
+    // is the only one — one lookup answers both "is it ours" and "is something else holding it".
+    findActiveAgentRun({ competitorAccountId: competitor.id }, user.id, "clerk"),
   ]);
+
+  const activeRun =
+    clerkLock?.command === "clerk-analyze-channel" ? await attachRealtimeToken(clerkLock) : null;
 
   const sopOrder: Record<string, number> = { human: 0, hottest: 1, single_video: 2, ai_reference: 3 };
   const sortedSops = [...sops].sort(

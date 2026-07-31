@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 
 import { getLogtoContext } from "@logto/next/server-actions";
@@ -52,7 +53,9 @@ async function autoApproveIfInvited(user: User): Promise<User> {
   return updated ?? user;
 }
 
-export async function ensureCurrentUser(): Promise<User | null> {
+// Deduped per request: layout, page, AuthChip and resolveOwnedChannel each call this, and every
+// call was its own cookie decrypt plus an hkg1 -> ap-southeast-1 round trip.
+export const ensureCurrentUser = cache(async (): Promise<User | null> => {
   const { isAuthenticated, claims } = await getLogtoContext(logtoConfig);
   if (!isAuthenticated || !claims) {
     return null;
@@ -65,4 +68,4 @@ export async function ensureCurrentUser(): Promise<User | null> {
     name: claims.name,
   });
   return autoApproveIfInvited(user);
-}
+});
