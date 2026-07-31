@@ -469,7 +469,16 @@ export const monitorCompetitors = task({
             const secUid =
               extractDouyinSecUserId(comp.url) ?? (await resolveDouyinUser(comp.url)).secUserId;
             // Over-fetch + newest-first sort so old pinned videos don't crowd out fresh ones.
-            let videos = await getDouyinUserVideos(secUid, Math.min(60, maxVideosPerCompetitor * 4));
+            const sourced = await getDouyinUserVideos(
+              secUid,
+              Math.min(60, maxVideosPerCompetitor * 4),
+            );
+            if (sourced.partial) {
+              logger.warn(
+                `Competitor ${comp.url}: post list partial (${sourced.videos.length} fetched) — ranking over a truncated window`,
+              );
+            }
+            let videos = sourced.videos;
             videos.sort((a, b) => b.createTime - a.createTime);
             // Filter before truncating: the reverse order can return nothing while the fetched
             // window still holds plenty of matching items.

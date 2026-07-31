@@ -23,7 +23,7 @@ function key(): string {
 
 // Deterministic business errors (bad id → data.status_code) must not be retried; transient
 // shapes (network, 5xx, upstream RetryError body) should be.
-class TikHubError extends Error {
+export class TikHubError extends Error {
   readonly retryable: boolean;
   constructor(message: string, retryable: boolean) {
     super(message);
@@ -61,11 +61,23 @@ function assertBusinessOk(json: RawEnvelope, endpoint: string): void {
   }
 }
 
+// Full jitter over an exponential ceiling. The 2026-07-30 flap outlasted the old fixed
+// 4 × 1500ms·i budget, and identical sleeps make concurrent callers re-hit a flapping
+// origin in lockstep.
+function backoffMs(attempt: number): number {
+  return 500 + Math.floor(Math.random() * Math.min(1500 * 2 ** (attempt - 1), 15_000));
+}
+
+// Attempts alone can't bound wall clock once each one may burn the 30s timeout, and this
+// client is awaited inline by web request paths too. Worst case is now budget + one attempt.
+const RETRY_BUDGET_MS = 60_000;
+
 // 30s hard timeout: a stalled TikHub origin would otherwise hang the run (xhs.ts/tikhub.ts have none).
-// 4 × 1500ms·i backoff — live flaps of the "400 Please retry" kind outlasted a 3 × 800ms budget.
 async function get<T>(endpoint: string, params: Record<string, string>, attempts = 4): Promise<T> {
   const qs = new URLSearchParams(params).toString();
   const url = `${BASE}${endpoint}${qs ? `?${qs}` : ""}`;
+  const deadline = Date.now() + RETRY_BUDGET_MS;
+  const canRetry = (i: number) => i < attempts && Date.now() < deadline;
   let lastErr: Error | undefined;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -80,9 +92,14 @@ async function get<T>(endpoint: string, params: Record<string, string>, attempts
       if (res.status >= 500 || res.status === 429 || res.status === 400) {
         const body = await res.text();
         lastErr = new Error(`TikHub ${endpoint} HTTP ${res.status}: ${body.slice(0, 300)}`);
-        if (i < attempts) {
+        if (canRetry(i)) {
+          // retry-after is capped and jittered too: an unbounded honour of it would park a
+          // web request for minutes, and an exact honour re-synchronises every caller.
           const retryAfter = Number(res.headers.get("retry-after"));
-          const waitMs = res.status === 429 && retryAfter > 0 ? retryAfter * 1000 : 1500 * i;
+          const waitMs =
+            res.status === 429 && retryAfter > 0
+              ? Math.min(retryAfter * 1000, 30_000) + Math.floor(Math.random() * 500)
+              : backoffMs(i);
           await sleep(waitMs);
           continue;
         }
@@ -101,8 +118,8 @@ async function get<T>(endpoint: string, params: Record<string, string>, attempts
     } catch (err) {
       if (err instanceof TikHubError && !err.retryable) throw err;
       lastErr = err as Error;
-      if (i >= attempts) throw lastErr;
-      await sleep(1500 * i);
+      if (!canRetry(i)) throw lastErr;
+      await sleep(backoffMs(i));
     }
   }
   throw lastErr ?? new Error(`TikHub ${endpoint} unreachable`);
@@ -365,19 +382,37 @@ type RawPostListResp = {
   data?: { aweme_list?: RawAweme[] | null; has_more?: number; max_cursor?: number };
 };
 
-export async function getDouyinUserVideos(secUserId: string, limit = 20): Promise<DouyinVideo[]> {
+// count=20 makes TikHub truncate the response body mid-JSON (HTTP 200, then the socket closes —
+// undici raises "TypeError: terminated"). Measured 2026-07-31 over three accounts: count=20 lost
+// 3/9 bodies and, in a bad window, 9/9; count=10 was clean 12/12 while returning a LARGER body,
+// so this is not a size limit and retrying does not clear it — the failures cluster in time.
+const PAGE_COUNT = 10;
+
+// `partial` is returned rather than logged because callers rank and filter over this list —
+// a silently truncated pool would sort "by engagement" across a fraction of the account.
+export async function getDouyinUserVideos(
+  secUserId: string,
+  limit = 20,
+): Promise<{ videos: DouyinVideo[]; partial: boolean }> {
   const id = extractDouyinSecUserId(secUserId) ?? secUserId.trim();
   const out: DouyinVideo[] = [];
   let cursor = 0;
+  let partial = false;
   const maxPages = 10;
   for (let page = 0; page < maxPages && out.length < limit; page++) {
     // app_v3 (not web): the web post list lags active accounts by ~6 days.
     // Pinned items (is_top=1) ride the first page and don't count against `count`.
-    const j = await get<RawPostListResp>("/api/v1/douyin/app/v3/fetch_user_post_videos", {
-      sec_user_id: id,
-      count: "20",
-      max_cursor: String(cursor),
+    // Page 0 gets the wider budget — it is the only page whose loss leaves nothing to return.
+    const j = await get<RawPostListResp>(
+      "/api/v1/douyin/app/v3/fetch_user_post_videos",
+      { sec_user_id: id, count: String(PAGE_COUNT), max_cursor: String(cursor) },
+      page === 0 ? 6 : 4,
+    ).catch((err: Error) => {
+      if (out.length === 0) throw err;
+      partial = true;
+      return null;
     });
+    if (!j) break;
     const list = j.data?.aweme_list ?? [];
     for (const raw of list) out.push(normalizeVideo(raw));
     if (j.data?.has_more !== 1) break;
@@ -385,7 +420,7 @@ export async function getDouyinUserVideos(secUserId: string, limit = 20): Promis
     if (!cursor) break;
   }
   // Pinned lead, newest-first after; slicing the tail keeps pinned + latest.
-  return out.slice(0, limit);
+  return { videos: out.slice(0, limit), partial };
 }
 
 type RawDetailResp = { data?: { aweme_detail?: RawAweme } };

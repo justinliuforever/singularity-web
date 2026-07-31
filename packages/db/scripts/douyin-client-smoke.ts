@@ -89,7 +89,7 @@ async function main() {
   t("fashion followerCount > 0", (fash.followerCount ?? 0) > 0);
 
   console.log("\n══════ ② getDouyinUserVideos — video account ══════");
-  const fitVids = await getDouyinUserVideos(ACCOUNTS.fitness, 8);
+  const { videos: fitVids } = await getDouyinUserVideos(ACCOUNTS.fitness, 8);
   console.log(`  fitness returned ${fitVids.length} videos; is_top=[${fitVids.map((v) => (v.isTop ? 1 : 0)).join(",")}]`);
   for (const v of fitVids.slice(0, 3)) {
     console.log(
@@ -112,7 +112,7 @@ async function main() {
   );
 
   console.log("\n══════ ③ getDouyinUserVideos — image (图文) account ══════");
-  const fashVids = await getDouyinUserVideos(ACCOUNTS.fashion, 8);
+  const { videos: fashVids } = await getDouyinUserVideos(ACCOUNTS.fashion, 8);
   const typeDist = fashVids.reduce<Record<string, number>>((acc, v) => {
     acc[v.contentType] = (acc[v.contentType] ?? 0) + 1;
     return acc;

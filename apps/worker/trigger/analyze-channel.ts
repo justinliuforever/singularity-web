@@ -63,6 +63,7 @@ import {
   getDouyinUserVideos,
   getDouyinVideoDetail,
   resolveDouyinUser,
+  TikHubError,
   type DouyinPlaySource,
   type DouyinVideo,
 } from "@goooose/integrations/clients/douyin";
@@ -1011,11 +1012,28 @@ export const analyzeChannel = task({
             detail:
               dySource === "popular" ? "抓取账号作品后按互动分排序" : "抓取账号最新作品列表",
           });
-          const secUid =
-            extractDouyinSecUserId(channel.platformUrl) ??
-            (await resolveDouyinUser(channel.platformUrl)).secUserId;
           const fetchLimit = Math.min(60, limit * 4);
-          let all = await getDouyinUserVideos(secUid, fetchLimit);
+          // Both TikHub calls in the sourcing phase share one handler: a flap on either one
+          // otherwise surfaces as a raw English HTTP line in the user's failure banner.
+          const sourced = await (async () => {
+            const secUid =
+              extractDouyinSecUserId(channel.platformUrl) ??
+              (await resolveDouyinUser(channel.platformUrl)).secUserId;
+            return getDouyinUserVideos(secUid, fetchLimit);
+          })().catch((err: Error) => {
+            logger.error("Douyin sourcing failed", { message: err.message.slice(0, 300) });
+            throw new Error(
+              err instanceof TikHubError && !err.retryable
+                ? "抖音账号信息获取失败：请确认主页链接有效，且账号未设为私密或已注销"
+                : `抖音作品列表获取失败：上游接口暂时不可用，请稍后重试（${err.message.slice(0, 80)}）`,
+            );
+          });
+          let all = sourced.videos;
+          if (sourced.partial) {
+            appendLog(
+              `⚠ 作品列表仅取回 ${all.length} 条（上游分页失败），本次排序与筛选基于这 ${all.length} 条`,
+            );
+          }
           if (payload.recencyMonths) {
             const cutoff = Date.now() / 1000 - payload.recencyMonths * 30 * 86400;
             all = all.filter((v) => v.createTime >= cutoff);
