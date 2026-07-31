@@ -59,10 +59,15 @@ import {
   classifyVideo,
   generateIdeas,
 } from "@goooose/domain/services/muse";
+import pLimit from "p-limit";
+
 import { asPositiveNumber, parseDurationToSec, safeText, sleep } from "@goooose/integrations/utils";
 
 const ASR_MAX_DURATION_SEC = 60 * 60;
 const DEFAULT_NUM_IDEAS = 5;
+// DeepSeek handles this comfortably; the ceiling is upstream rate limit, not the DB.
+const IDEA_CONCURRENCY = 4;
+const CLASSIFY_ETA_SHARE = 0.35;
 
 type Payload = {
   channelId: string;
@@ -574,8 +579,8 @@ export const monitorCompetitors = task({
         transcript: string;
       }> = [];
 
-      // Classify (with ASR) is ~65% of the timeline; weighting it keeps the ETA from resetting
-      // at the classify→idea-gen boundary.
+      // Measured on a 20-video run: classify+ASR 6.4 min vs idea generation 11-12 min once the
+      // idea loop runs IDEA_CONCURRENCY-wide. The old 65/35 split had it backwards.
       const etaStart = Date.now();
       const etaField = (frac: number): { estSecondsRemaining?: number } => {
         const el = (Date.now() - etaStart) / 1000;
@@ -589,7 +594,7 @@ export const monitorCompetitors = task({
           ...stepBase,
           phase: "fetching video metadata",
           detail: `[${i + 1}/${fresh.length}] ${ref.title}`,
-          ...etaField((0.65 * i) / fresh.length),
+          ...etaField((CLASSIFY_ETA_SHARE * i) / fresh.length),
         });
 
         try {
@@ -900,90 +905,98 @@ export const monitorCompetitors = task({
           total: relevantRows.length,
           phase: "generating ideas",
           detail: `共 ${relevantRows.length} 个相关视频，开始生成选题`,
-          ...etaField(0.65),
+          ...etaField(CLASSIFY_ETA_SHARE),
         });
 
-        for (let i = 0; i < relevantRows.length; i++) {
-          const row = relevantRows[i]!;
-          const stepBase = { current: i + 1, total: relevantRows.length };
-          await metadata.set("progress", {
-            ...stepBase,
-            phase: "analyzing viral trigger",
-            detail: `[${i + 1}/${relevantRows.length}] ${row.title} · 分析爆款触发因素`,
-            ...etaField(0.65 + (0.35 * i) / relevantRows.length),
-          });
-          try {
-            const sourceLang = likelyChineseText(
-              (row.transcript && row.transcript.trim()) || row.title,
-            )
-              ? "zh"
-              : "en";
-            const viralTrigger = await analyzeViralTrigger({
-              channelDescription,
-              title: row.title,
-              channelName: row.sourceChannelName ?? "(unknown)",
-              views: row.views,
-              durationSec: row.durationSec,
-              transcript: row.transcript,
-              language: sourceLang,
-            });
+        // Idea generation is ~88% of a batch run's wall clock and rows are independent, so it
+        // runs concurrently like the clerk loops. Progress is driven by a completion counter in
+        // finally — a per-row index would walk the bar backwards once rows overlap.
+        let completedIdeaRows = 0;
+        const ideaLimit = pLimit(IDEA_CONCURRENCY);
+        await Promise.all(
+          relevantRows.map((row) =>
+            ideaLimit(async () => {
+              try {
+                const sourceLang = likelyChineseText(
+                  (row.transcript && row.transcript.trim()) || row.title,
+                )
+                  ? "zh"
+                  : "en";
+                const viralTrigger = await analyzeViralTrigger({
+                  channelDescription,
+                  title: row.title,
+                  channelName: row.sourceChannelName ?? "(unknown)",
+                  views: row.views,
+                  durationSec: row.durationSec,
+                  transcript: row.transcript,
+                  language: sourceLang,
+                });
 
-            if (!viralTrigger) {
-              logger.warn(`Empty viral trigger for ${row.title}; skipping idea generation`);
-              continue;
-            }
+                if (!viralTrigger) {
+                  logger.warn(`Empty viral trigger for ${row.title}; skipping idea generation`);
+                  return;
+                }
 
-            await metadata.set("progress", {
-              ...stepBase,
-              phase: "generating ideas",
-              detail: `[${i + 1}/${relevantRows.length}] ${row.title} · 生成 ${numIdeasPerVideo} 个选题`,
-              ...etaField(0.65 + (0.35 * i) / relevantRows.length),
-            });
-            const ideasResult = await generateIdeas({
-              channelDescription,
-              title: row.title,
-              channelName: row.sourceChannelName ?? "(unknown)",
-              views: row.views,
-              viralTrigger,
-              numIdeas: numIdeasPerVideo,
-              language,
-              biblePositioning,
-              transcript: row.transcript,
-              direction: payload.direction,
-              sopReference,
-            });
+                const ideasResult = await generateIdeas({
+                  channelDescription,
+                  title: row.title,
+                  channelName: row.sourceChannelName ?? "(unknown)",
+                  views: row.views,
+                  viralTrigger,
+                  numIdeas: numIdeasPerVideo,
+                  language,
+                  biblePositioning,
+                  transcript: row.transcript,
+                  direction: payload.direction,
+                  sopReference,
+                });
 
-            if (ideasResult.ideas.length === 0) {
-              logger.warn(
-                `No ideas parsed for "${row.title}" — raw sample: ${ideasResult.rawSample ?? "(none)"} | validation: ${ideasResult.parseErrorSample ?? "(none)"}`,
-              );
-              continue;
-            }
+                if (ideasResult.ideas.length === 0) {
+                  logger.warn(
+                    `No ideas parsed for "${row.title}" — raw sample: ${ideasResult.rawSample ?? "(none)"} | validation: ${ideasResult.parseErrorSample ?? "(none)"}`,
+                  );
+                  return;
+                }
 
-            await db.insert(museIdeas).values(
-              ideasResult.ideas.map((idea) => ({
-                channelId: channel.id,
-                projectId,
-                sourceVideoId: row.monitorVideoId,
-                ideaNumber: ++globalIdeaNumber,
-                storyAngle: safeText(idea.story_angle),
-                factsAndData: safeText(idea.facts_and_data),
-                whySimilar: safeText(idea.why_similar),
-                viralTrigger: safeText(idea.viral_trigger) ?? safeText(viralTrigger),
-                coverConcept: safeText(idea.cover_concept),
-                suggestedHookType: safeText(idea.suggested_hook_type),
-                riskFactors: safeText(idea.risk_factors),
-                runId: payload.runId,
-              })),
-            ).onConflictDoNothing();
-            ideasGenerated += ideasResult.ideas.length;
-          } catch (err) {
-            logger.error(`Idea generation failed for ${row.title}`, {
-              message: (err as Error).message?.slice(0, 500),
-            });
-          }
-          if (i < relevantRows.length - 1) await sleep(1500);
-        }
+                // ++globalIdeaNumber stays safe under concurrency: .map() is synchronous with no
+                // await inside, so one row's whole block is allocated without interleaving.
+                await db.insert(museIdeas).values(
+                  ideasResult.ideas.map((idea) => ({
+                    channelId: channel.id,
+                    projectId,
+                    sourceVideoId: row.monitorVideoId,
+                    ideaNumber: ++globalIdeaNumber,
+                    storyAngle: safeText(idea.story_angle),
+                    factsAndData: safeText(idea.facts_and_data),
+                    whySimilar: safeText(idea.why_similar),
+                    viralTrigger: safeText(idea.viral_trigger) ?? safeText(viralTrigger),
+                    coverConcept: safeText(idea.cover_concept),
+                    suggestedHookType: safeText(idea.suggested_hook_type),
+                    riskFactors: safeText(idea.risk_factors),
+                    runId: payload.runId,
+                  })),
+                ).onConflictDoNothing();
+                ideasGenerated += ideasResult.ideas.length;
+              } catch (err) {
+                logger.error(`Idea generation failed for ${row.title}`, {
+                  message: (err as Error).message?.slice(0, 500),
+                });
+              } finally {
+                completedIdeaRows++;
+                await metadata.set("progress", {
+                  current: completedIdeaRows,
+                  total: relevantRows.length,
+                  phase: "generating ideas",
+                  detail: `[${completedIdeaRows}/${relevantRows.length}] ${row.title}`,
+                  ...etaField(
+                    CLASSIFY_ETA_SHARE +
+                      ((1 - CLASSIFY_ETA_SHARE) * completedIdeaRows) / relevantRows.length,
+                  ),
+                });
+              }
+            }),
+          ),
+        );
       }
 
       if (proxyPool) {
