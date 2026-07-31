@@ -8,6 +8,9 @@ import { db } from "@/lib/db";
 import { rateLimitOk } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
 
+// Link resolution goes through TikHub, whose client retries for up to 90s.
+export const maxDuration = 30;
+
 const NOTE_ID = /^[a-f0-9]{16,32}$/i;
 const usageSink = createUsageSink(db);
 

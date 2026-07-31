@@ -10,6 +10,9 @@ import { db } from "@/lib/db";
 import { rateLimitOk } from "@/server/access-code";
 import { ensureCurrentUser } from "@/lib/users";
 
+// A cover miss resolves through TikHub, whose client retries for up to 90s.
+export const maxDuration = 30;
+
 const AWEME_ID = /^\d{15,21}$/;
 const usageSink = createUsageSink(db);
 

@@ -17,8 +17,11 @@ async function get<T>(endpoint: string, params: Record<string, string> = {}): Pr
   // 400 is retried too: TikHub returns a transient "Please retry" body under it.
   for (let i = 1; i <= attempts; i++) {
     try {
+      // Without a signal this inherits undici's 300s default, and these run inline in tRPC
+      // mutations — a silent TikHub stall would hold a Vercel function for minutes per attempt.
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${key()}`, accept: "application/json" },
+        signal: AbortSignal.timeout(30_000),
       });
       if ((res.status >= 500 || res.status === 429 || res.status === 400) && i < attempts) {
         const retryAfter = Number(res.headers.get("retry-after"));
