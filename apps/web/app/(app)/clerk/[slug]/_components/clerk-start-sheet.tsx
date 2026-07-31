@@ -17,6 +17,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { RunCostHint } from "@/components/run-cost-hint";
 import { estimateRunMinutes } from "@/lib/run-estimate";
 import { trpc } from "@/lib/trpc";
 
@@ -248,8 +249,7 @@ export function ClerkStartSheet({
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  推荐 20 个（约 6-10 分钟出 SOP，4 并行）· 预计消耗{" "}
-                  {estimateRunMinutes(platform, Number.parseInt(limit, 10) || 0)} 配额分钟
+                  推荐 20 个（约 6-10 分钟出 SOP，4 并行）
                 </p>
               </Field>
             ) : (
@@ -354,7 +354,17 @@ export function ClerkStartSheet({
         </div>
 
         <SheetFooter>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-2">
+            {/* Footer, not the 数量 field: the urls branch has no 数量 and was showing no cost at all. */}
+            <RunCostHint
+              estimateMinutes={estimateRunMinutes(
+                platform,
+                source === "urls"
+                  ? urls.split("\n").map((l) => l.trim()).filter(Boolean).length
+                  : Number.parseInt(limit, 10) || 0,
+              )}
+            />
+            <div className="flex items-center gap-3">
             <Button onClick={handleSubmit} disabled={startMutation.isPending}>
               {startMutation.isPending ? (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -370,6 +380,7 @@ export function ClerkStartSheet({
             >
               取消
             </Button>
+            </div>
           </div>
         </SheetFooter>
       </SheetContent>

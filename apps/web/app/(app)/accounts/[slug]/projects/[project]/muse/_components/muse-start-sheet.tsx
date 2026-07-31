@@ -7,6 +7,9 @@ import { toast } from "sonner";
 
 import { detectVideoLinkPlatform } from "@goooose/integrations/validators";
 
+import { RunCostHint } from "@/components/run-cost-hint";
+import { estimateRunMinutes } from "@/lib/run-estimate";
+
 import { Button } from "@/components/ui/button";
 import { CompetitorAvatar } from "@/components/competitor-avatar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -173,6 +176,22 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
   );
   const linksReady =
     linkLines.length > 0 && linkLines.length <= MAX_LINK_LINES && invalidLineNos.length === 0;
+
+  // Mirrors assertRunQuota: per-item platform, deduped links. linksReady already rejects any
+  // line detectVideoLinkPlatform cannot place, so the server's channel-platform fallback for a
+  // link is unreachable and both sides land on the same number.
+  const estimateMinutes = useMemo(() => {
+    if (sourceMode === "links") {
+      return [...new Set(linkLines)].reduce(
+        (sum, url) => sum + estimateRunMinutes(detectVideoLinkPlatform(url) ?? "xhs", 1),
+        0,
+      );
+    }
+    return [...selected, ...extraSelected].reduce(
+      (sum, c) => sum + estimateRunMinutes(c.platform, maxVideos),
+      0,
+    );
+  }, [sourceMode, linkLines, selected, extraSelected, maxVideos]);
 
   const handleSubmit = () => {
     setError(null);
@@ -549,7 +568,9 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
         </div>
 
         <SheetFooter>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-2">
+            <RunCostHint estimateMinutes={estimateMinutes} />
+            <div className="flex items-center gap-3">
             <Button
               onClick={handleSubmit}
               disabled={
@@ -575,6 +596,7 @@ export function MuseStartSheet({ channelId, projectId, channelName, competitors,
             >
               取消
             </Button>
+            </div>
           </div>
         </SheetFooter>
       </SheetContent>
