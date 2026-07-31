@@ -118,7 +118,15 @@ async function get<T>(endpoint: string, params: Record<string, string>, attempts
     } catch (err) {
       if (err instanceof TikHubError && !err.retryable) throw err;
       lastErr = err as Error;
-      if (!canRetry(i)) throw lastErr;
+      if (!canRetry(i)) {
+        // undici's own message is the bare word "terminated" and the real reason lives on
+        // .cause; rethrowing it raw is what put "terminated" in front of users.
+        const cause = (lastErr as Error & { cause?: unknown }).cause;
+        const detail = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+        throw new Error(
+          `TikHub ${endpoint} network failure after ${i} attempts: ${lastErr.message}${detail ? ` (${detail})` : ""}`,
+        );
+      }
       await sleep(backoffMs(i));
     }
   }

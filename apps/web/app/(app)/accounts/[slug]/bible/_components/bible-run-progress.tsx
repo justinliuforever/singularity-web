@@ -8,6 +8,7 @@ import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { Button } from "@/components/ui/button";
+import { friendlyRunError } from "@/lib/run-error";
 import { trpc } from "@/lib/trpc";
 
 // Not PoetRunProgress: that one needs a projectSlug, and this page has none.
@@ -90,7 +91,7 @@ export function BibleRunProgress({ initialActive }: Props) {
     if (ok) {
       toast.success(message ?? "圣经已生成");
     } else {
-      toast.error(message ?? "运行失败");
+      toast.error(message ?? "运行失败", { duration: 10_000 });
     }
     // Refresh the persistent header bible chip (channels.context) and this server page.
     void utils.channels.context.invalidate();
@@ -144,7 +145,7 @@ function ProgressCard({
   });
   useEffect(() => {
     if (error) {
-      settledRef.current(false, `错误：${error.message}`);
+      settledRef.current(false, friendlyRunError(error.message));
       return;
     }
     if (!run) return;
@@ -166,7 +167,7 @@ function ProgressCard({
         settledRef.current(true, `圣经已生成${out?.topicClaimed ? ` · ${out.topicClaimed}` : ""}`);
       }
     } else if (TERMINAL_STATUS.has(run.status)) {
-      settledRef.current(false, run.error?.message ?? `运行${STATUS_LABEL[run.status] ?? run.status}`);
+      settledRef.current(false, friendlyRunError(run.error?.message) || `运行${STATUS_LABEL[run.status] ?? run.status}`);
     }
   }, [run, error]);
 

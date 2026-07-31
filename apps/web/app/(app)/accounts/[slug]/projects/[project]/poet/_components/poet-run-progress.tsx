@@ -8,6 +8,7 @@ import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { AgentTimeline, type Stage } from "@/components/agent-timeline";
 import { Button } from "@/components/ui/button";
+import { friendlyRunError } from "@/lib/run-error";
 import { trpc } from "@/lib/trpc";
 
 const POET_BIBLE_STAGES: Stage[] = [
@@ -146,7 +147,7 @@ export function PoetRunProgress({ initialActive, accountSlug, projectSlug }: Pro
           utils.invalidate();
           router.refresh();
         } else {
-          toast.error(message ?? "运行失败");
+          toast.error(message ?? "运行失败", { duration: 10_000 });
         }
       }}
     />
@@ -194,7 +195,7 @@ function ProgressCard({
 
   useEffect(() => {
     if (error) {
-      onSettled(false, `错误：${error.message}`);
+      onSettled(false, friendlyRunError(error.message));
       return;
     }
     if (!run) return;
@@ -244,7 +245,7 @@ function ProgressCard({
       run.status === "TIMED_OUT" ||
       run.status === "EXPIRED"
     ) {
-      onSettled(false, run.error?.message ?? `运行${runStatusLabel(run.status)}`);
+      onSettled(false, friendlyRunError(run.error?.message) || `运行${runStatusLabel(run.status)}`);
     }
   }, [run, error, onSettled, active.kind]);
 

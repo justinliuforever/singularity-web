@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { useVisibleRefresh } from "@/hooks/use-visible-refresh";
+import { friendlyRunError } from "@/lib/run-error";
 import { trpc } from "@/lib/trpc";
 
 import { ClerkPipelineProgress } from "./clerk-pipeline-progress";
@@ -107,7 +108,7 @@ export function ClerkRunButton({
           utils.invalidate();
           router.refresh();
         } else {
-          toast.error(message ?? "分析失败");
+          toast.error(message ?? "分析失败", { duration: 10_000 });
         }
       }}
     />
@@ -171,7 +172,7 @@ function ClerkRunProgress({
 
   useEffect(() => {
     if (error) {
-      onSettled(false, `错误：${error.message}`);
+      onSettled(false, friendlyRunError(error.message));
       return;
     }
     if (!run) return;
@@ -193,7 +194,7 @@ function ClerkRunProgress({
       run.status === "TIMED_OUT" ||
       run.status === "EXPIRED"
     ) {
-      onSettled(false, run.error?.message ?? `运行${runStatusLabel(run.status)}`);
+      onSettled(false, friendlyRunError(run.error?.message) || `运行${runStatusLabel(run.status)}`);
     }
   }, [run, error, onSettled]);
 

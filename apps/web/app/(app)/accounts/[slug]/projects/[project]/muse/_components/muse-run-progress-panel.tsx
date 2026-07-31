@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EtaHint } from "@/components/eta-hint";
 import { SuccessCheck } from "@/components/success-check";
 import { useVisibleRefresh } from "@/hooks/use-visible-refresh";
+import { friendlyRunError } from "@/lib/run-error";
 import { trpc } from "@/lib/trpc";
 
 const MUSE_STAGES: Stage[] = [
@@ -155,7 +156,7 @@ export function MuseRunProgressPanel({
 
   useEffect(() => {
     if (error) {
-      toast.error(`错误：${error.message}`);
+      toast.error(friendlyRunError(error.message), { duration: 10_000 });
       router.refresh();
       return;
     }
@@ -182,7 +183,7 @@ export function MuseRunProgressPanel({
       });
       router.refresh();
     } else if (TERMINAL_STATUS.has(run.status)) {
-      toast.error(run.error?.message ?? `运行${STATUS_LABEL[run.status] ?? run.status}`);
+      toast.error(friendlyRunError(run.error?.message) || `运行${STATUS_LABEL[run.status] ?? run.status}`, { duration: 10_000 });
       router.refresh();
     }
   }, [run, error, router]);
