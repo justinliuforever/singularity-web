@@ -1,5 +1,5 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
-import { generateText, wrapLanguageModel } from "ai";
+import { generateText, wrapLanguageModel, type LanguageModelMiddleware } from "ai";
 
 import { usageMiddleware } from "../metering";
 
@@ -18,11 +18,30 @@ function getDeepseek() {
 
 export type LlmTier = "flash" | "pro";
 
+// DeepSeek upgraded the model behind `deepseek-v4-flash` in place (build 0731) to reason by
+// default. On our structured prompts it spends the ENTIRE output budget on reasoning and returns
+// no text: measured 14/15 empty on the real video-analysis prompt, at every budget from 4096 to
+// 16384, and the failure is random rather than size-dependent. Reasoning buys nothing on
+// mechanical extraction and rewriting, so it is switched off for the whole tier here rather than
+// at each of the call sites. Measured with it off: 3/3 text, 5x faster, 6x fewer output tokens.
+const noThinking: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  transformParams: async ({ params }) => ({
+    ...params,
+    providerOptions: {
+      ...params.providerOptions,
+      deepseek: { ...(params.providerOptions?.deepseek ?? {}), thinking: { type: "disabled" } },
+    },
+  }),
+};
+
 export function llm(tier: LlmTier = "flash") {
   const modelId = tier === "pro" ? "deepseek-v4-pro" : "deepseek-v4-flash";
+  const metering = usageMiddleware("llm", "deepseek", modelId);
   return wrapLanguageModel({
     model: getDeepseek()(modelId),
-    middleware: usageMiddleware("llm", "deepseek", modelId),
+    // Pro keeps its reasoning — that is what it is for, and it stays reliable with it on.
+    middleware: tier === "pro" ? metering : [noThinking, metering],
   });
 }
 

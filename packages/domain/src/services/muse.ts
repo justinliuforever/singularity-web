@@ -39,7 +39,8 @@ export async function classifyVideo(args: ClassifyArgs): Promise<Classification>
     transcriptPreview,
     language: args.language,
   });
-  // 1500-token floor leaves room for V4 reasoning preamble; 512 starved Chinese prompts.
+  // 512 starved Chinese prompts. The reasoning preamble this floor once absorbed is gone —
+  // llm() disables thinking on the flash tier — but the floor stays for Chinese output length.
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await generateText({
       model: llm("flash"),
