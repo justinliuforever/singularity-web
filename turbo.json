@@ -34,7 +34,10 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      // .next/dev is dev-server state, not build output, but it sits under .next — so once
+      // `pnpm dev` has run, every build snapshotted its 2.4GB Turbopack cache into .turbo.
+      // That is how the local cache reached 38GB across 2013 entries.
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**"]
     },
     "lint": {},
     "typecheck": {

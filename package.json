@@ -12,7 +12,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "clean:cache": "rm -rf .turbo/cache apps/*/.next apps/*/.turbo packages/*/.turbo"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
