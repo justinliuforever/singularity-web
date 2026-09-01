@@ -21,7 +21,7 @@
     "jsonrepair": "^3.14.0",
     "p-limit": "^6.2.0",
     "postgres": "^3.4.9",
-    "undici": "^7.16.0"
+    "undici": "^7.28.0"
   },
   "devDependencies": {
     "@trigger.dev/build": "^4.4.4",
