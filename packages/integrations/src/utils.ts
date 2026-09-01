@@ -1,5 +1,17 @@
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// Model APIs stream for minutes, so they can't take the data clients' 30s cap — but with no
+// cap at all a stalled connection blocks the calling task until Trigger.dev's maxDuration.
+// Wraps fetch instead of passing a signal per call so every request through a provider gets it.
+export function withRequestTimeout(timeoutMs: number): typeof fetch {
+  return (input, init) => {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    // Providers pass their own signal for user aborts — keep both live, don't replace it.
+    const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    return fetch(input, { ...init, signal });
+  };
+}
+
 // Timeout so a stalled redirect hop can't hang the run; any failure returns the input unchanged.
 export async function expandShortLink(input: string, shortLink: string | null): Promise<string> {
   if (!shortLink) return input;
