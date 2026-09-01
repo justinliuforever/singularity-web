@@ -18,7 +18,7 @@ import {
 
 import { withMeteredRunDb } from "../lib/metered-run";
 import { userRunsQueue } from "../lib/queues";
-import { llm } from "@goooose/integrations/clients/llm";
+import { generateTextWithFallback, llm } from "@goooose/integrations/clients/llm";
 import { summarizeVideoForSop } from "@goooose/domain/services/clerk-map";
 import { redactUngrounded } from "@goooose/domain/services/grounding";
 import { withProxyRetry, type ProxyPool } from "@goooose/integrations/proxy";
@@ -1914,8 +1914,11 @@ export const analyzeChannel = task({
             }
             try {
               // 16384 cap: ai_reference truncated at 12000 on rich multi-video channels.
-              const sopResult = await generateText({
-                model: llm("pro"),
+              // Pro-with-Flash-fallback, not raw Pro: the human SOP is the longest document
+              // of the three (TOC + 7 sections + 2 appendices), so Pro routinely spent the
+              // whole budget on reasoning and returned empty — that SOP then silently never
+              // landed while the shorter two did.
+              const sopResult = await generateTextWithFallback({
                 prompt,
                 maxOutputTokens: 16384,
                 temperature: 0.4,
@@ -1923,7 +1926,10 @@ export const analyzeChannel = task({
               });
               const cleaned = safeText(sopResult.text);
               if (!cleaned) {
-                logger.warn(`Empty ${step.type} SOP response`);
+                logger.warn(
+                  `Empty ${step.type} SOP response (tier=${sopResult.usedTier}, finish=${sopResult.finishReason ?? "unknown"})`,
+                );
+                appendLog(`✗ ${step.type} SOP 生成失败（模型未返回内容）`);
                 return;
               }
               // ai_reference stays English, so the grounding pass must be tagged English.
@@ -1984,6 +1990,9 @@ export const analyzeChannel = task({
               const msg = (err as Error).message;
               console.error(`[analyze-channel] SOP ${step.type} failed:`, msg);
               logger.error(`SOP ${step.type} failed`, { message: msg.slice(0, 500) });
+              // A missing SOP used to be invisible: the run still reported 完成 with one
+              // fewer document and nothing said which one.
+              appendLog(`✗ ${step.type} SOP 生成失败`);
             }
           }),
         );
