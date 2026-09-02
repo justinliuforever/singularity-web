@@ -56,6 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 圣经为锚点化格式：`TOPIC:`/`HOST:` 行 + 9 个英文锚点章节（POSITIONING/PERSONA/AUDIENCE/CONTENT_PILLARS/CONTENT_RULES/METHODOLOGY/INFORMATION_SOURCES/TOPIC_FRAMEWORK/FACT_SHEET）；下游用 `selectBibleSections` 按需取节（无锚点旧圣经回退整块）
 - commit 后**不要**自动 `git push`；push 由用户自己执行，除非用户在当前消息里明确要求 push
 - 改完 `packages/{db,domain,integrations,prompts}/**` 或 `apps/worker/**` 后**必须**重新部署 Trigger.dev（Vercel 自动部署，Trigger.dev 不会）。`packages/db` 同样算数：worker 从它 import schema、配额与结算函数
+- 带 schema 新列的改动**先应用迁移再部署 worker**：drizzle 无参 `.returning()` 会 RETURNING schema 全列，列不存在时任务在最后入库处报 42703
 
 ## 核心 IP（`packages/prompts` 提示词 + `packages/domain` 服务）
 
