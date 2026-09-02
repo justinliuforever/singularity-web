@@ -27,9 +27,6 @@ import {
 import { sopTypeLabel } from "@/lib/sop-labels";
 import { trpc } from "@/lib/trpc";
 
-// Shared write-time settings for both script sources (muse idea / custom topic):
-// duration plus the playbook pick Krista asked for — full-account SOP or a
-// single-video 拆解. Replaces the two duplicated duration dropdowns.
 type Props = {
   channelId: string;
   projectId: string;
@@ -107,6 +104,8 @@ export function WriteScriptSheet({
     }))
     .filter((g) => g.items.length > 0);
   const chosen = options.find((o) => o.id === sopChoice) ?? null;
+  // A pick whose row has since been deleted degrades to the primary instead of a server 404.
+  const effectiveChoice = chosen ? chosen.id : PRIMARY;
 
   const optionLabel = (o: (typeof options)[number]) =>
     `${o.label} · ${sopTypeLabel(o.sopType)}${o.id === primarySopId ? " · 当前默认" : ""}`;
@@ -127,7 +126,7 @@ export function WriteScriptSheet({
     const sec = resolveSeconds();
     if (sec === null) return;
     setOpen(false);
-    onSubmit(sec, sopChoice === PRIMARY ? undefined : sopChoice);
+    onSubmit(sec, effectiveChoice === PRIMARY ? undefined : effectiveChoice);
   };
 
   return (
@@ -180,7 +179,7 @@ export function WriteScriptSheet({
               </div>
             </Field>
 
-            {noPrimary && sopChoice === PRIMARY ? (
+            {noPrimary && effectiveChoice === PRIMARY ? (
               <div className="flex flex-col gap-2 rounded-md border border-amber-600/40 bg-amber-500/10 p-3 text-xs">
                 <span className="font-medium">
                   {options.length > 0 ? "本项目还没有默认 SOP" : "该账号还没有任何 SOP"}
@@ -205,10 +204,10 @@ export function WriteScriptSheet({
             {options.length > 0 ? (
               <Field>
                 <FieldLabel>打法参考 SOP</FieldLabel>
-                <Select value={sopChoice} onValueChange={(v) => setSopChoice(typeof v === "string" ? v : PRIMARY)}>
+                <Select value={effectiveChoice} onValueChange={(v) => setSopChoice(typeof v === "string" ? v : PRIMARY)}>
                   <SelectTrigger className="w-full">
                     <span className="truncate">
-                      {sopChoice !== PRIMARY && chosen ? optionLabel(chosen) : primaryLabel}
+                      {chosen ? optionLabel(chosen) : primaryLabel}
                     </span>
                   </SelectTrigger>
                   <SelectContent>

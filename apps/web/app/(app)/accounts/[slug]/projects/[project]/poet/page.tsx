@@ -84,7 +84,7 @@ export default async function PoetChannelPage({ params }: Props) {
         .leftJoin(poetCustomTopics, eq(poetCustomTopics.id, poetScripts.customTopicId))
         .where(eq(poetScripts.projectId, project.id))
         .orderBy(desc(poetScripts.generatedAt))
-        .limit(20),
+        .limit(100),
       getActiveAgentRun(channel.id, user.id, "poet", undefined, project.id),
       // The server lock is account-wide, so a sibling project's run still blocks starting here.
       getActiveAgentRun(channel.id, user.id, "poet"),
@@ -92,8 +92,7 @@ export default async function PoetChannelPage({ params }: Props) {
 
   const activeBible = activeBibleRow[0] ?? null;
 
-  // Scripts grouped under their source topic (Krista R5: scripts belong to the topic
-  // they came from). Key on the FK; SET NULL orphans collapse into one 来源已删除 group.
+  // Key on the FK; SET NULL orphans collapse into one 来源已删除 group.
   type ScriptRow = (typeof scripts)[number];
   const scriptGroups: Array<{
     key: string;
@@ -345,7 +344,12 @@ export default async function PoetChannelPage({ params }: Props) {
 
       {scripts.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted-foreground">已生成脚本 · 按选题归组</h2>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">已生成脚本 · 按选题归组</h2>
+            {scripts.length >= 100 ? (
+              <span className="text-xs text-muted-foreground">仅显示最近 100 篇</span>
+            ) : null}
+          </div>
           <div className="flex flex-col gap-5">
             {scriptGroups.map((g) => (
               <div key={g.key} className="flex flex-col gap-2">

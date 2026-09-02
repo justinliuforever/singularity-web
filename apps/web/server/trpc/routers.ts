@@ -2056,8 +2056,7 @@ export const appRouter = router({
         return activated;
       }),
 
-    // Options for the write-time playbook picker — every SOP the user owns, light rows
-    // only, plus which one the project resolves as primary today.
+    // Every SOP the user owns (any account), plus the one this project resolves as primary today.
     sopOptions: protectedProcedure
       .input(poetSopOptionsInput)
       .query(async ({ ctx, input }) => {
@@ -2101,7 +2100,8 @@ export const appRouter = router({
                 eq(competitorAccounts.userId, ctx.user.id),
               ),
             )
-            .orderBy(desc(clerkSops.generatedAt)),
+            .orderBy(desc(clerkSops.generatedAt))
+            .limit(200),
         ]);
         return { primarySopId: primary?.id ?? null, options };
       }),

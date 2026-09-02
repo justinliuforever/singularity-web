@@ -22,7 +22,6 @@ import { trpc } from "@/lib/trpc";
 
 type Props = {
   scriptId: string;
-  // Current display name (user-set name or the fallback) — prefills the input.
   currentName: string;
 };
 
