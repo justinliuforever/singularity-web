@@ -1931,9 +1931,9 @@ export const analyzeChannel = task({
                 return;
               }
               const truncated = sopResult.finishReason === "length";
-              if (truncated) {
-                logger.warn(`Truncated ${step.type} SOP (tier=${sopResult.usedTier}, ${cleaned.length} chars)`);
-              }
+              logger.info(
+                `${step.type} SOP text: tier=${sopResult.usedTier} finish=${sopResult.finishReason ?? "unknown"} ${cleaned.length} chars`,
+              );
               // ai_reference stays English, so the grounding pass must be tagged English.
               const grounded = await redactUngrounded({
                 draft: cleaned,

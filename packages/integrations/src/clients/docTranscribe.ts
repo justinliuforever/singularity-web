@@ -9,13 +9,17 @@ import { PDFDocument } from "pdf-lib";
 import { extractText, getDocumentProxy } from "unpdf";
 
 import { usageMiddleware } from "../metering";
+import { withRequestTimeout } from "../utils";
 
 let _anthropic: ReturnType<typeof createAnthropic> | null = null;
 
 function getAnthropic() {
   if (!_anthropic) {
     if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in env");
-    _anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    _anthropic = createAnthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      fetch: withRequestTimeout(10 * 60_000),
+    });
   }
   return _anthropic;
 }

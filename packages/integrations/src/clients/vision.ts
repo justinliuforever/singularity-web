@@ -5,10 +5,8 @@ import { generateText, wrapLanguageModel } from "ai";
 import { usageMiddleware } from "../metering";
 import { parseLlmJson, withRequestTimeout } from "../utils";
 
-// Same gap the DeepSeek client had: no cap meant a stalled connection hung video analysis
-// until the task's maxDuration. Vision calls are single images, so they need far less room
-// than a 16k-token SOP generation.
-const REQUEST_TIMEOUT_MS = 3 * 60_000;
+// Sized for analyzeImageStack (9 images, 8000 output tokens), the longest call on this client.
+const REQUEST_TIMEOUT_MS = 5 * 60_000;
 const IMAGE_FETCH_TIMEOUT_MS = 30_000;
 
 let _anthropic: ReturnType<typeof createAnthropic> | null = null;

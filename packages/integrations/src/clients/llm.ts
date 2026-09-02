@@ -4,13 +4,8 @@ import { generateText, wrapLanguageModel, type LanguageModelMiddleware } from "a
 import { usageMiddleware } from "../metering";
 import { withRequestTimeout } from "../utils";
 
-// Every other client here caps its requests (xhs/douyin/tikhub at 30s, asr on its own
-// controller); this one had none, so a stalled DeepSeek connection blocked the calling task
-// until Trigger.dev's maxDuration — observed as SOP generation frozen at 1/3 for over an
-// hour, holding the account lock the whole time. 10 minutes clears any legitimate call (the
-// longest is a 16384-token Pro generation with reasoning) while turning an open-ended hang
-// into a normal failure the step can catch and report.
-const REQUEST_TIMEOUT_MS = 10 * 60_000;
+// Under the shortest task maxDuration (600s) so a stalled call fails inside the task, not by Trigger's kill.
+const REQUEST_TIMEOUT_MS = 9 * 60_000;
 
 // Lazy-init: Trigger.dev scans modules at deploy time; defer env throw to first call.
 let _deepseek: ReturnType<typeof createDeepSeek> | null = null;
