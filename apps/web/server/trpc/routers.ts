@@ -1174,7 +1174,10 @@ export const appRouter = router({
           .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
           .where(
             and(
-              or(eq(channels.userId, ctx.user.id), eq(competitorAccounts.userId, ctx.user.id)),
+              or(
+                eq(channels.userId, ctx.user.id),
+                and(eq(competitorAccounts.userId, ctx.user.id), isNull(competitorAccounts.deletedAt)),
+              ),
               eq(clerkSops.sopType, "ai_reference"),
             ),
           )

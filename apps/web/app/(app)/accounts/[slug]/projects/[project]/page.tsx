@@ -66,7 +66,13 @@ export default async function ProjectHubPage({ params }: Props) {
     .innerJoin(clerkSops, eq(clerkSops.id, projectSops.sopId))
     .leftJoin(channels, eq(channels.id, clerkSops.channelId))
     .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
-    .where(and(eq(projectSops.projectId, project.id), eq(projectSops.role, "primary")))
+    .where(
+      and(
+        eq(projectSops.projectId, project.id),
+        eq(projectSops.role, "primary"),
+        isNull(competitorAccounts.deletedAt),
+      ),
+    )
     .limit(1);
   let currentSop: CurrentSop = pinnedSop
     ? {

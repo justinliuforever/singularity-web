@@ -4,7 +4,7 @@ import { generateText, wrapLanguageModel, type LanguageModelMiddleware } from "a
 import { usageMiddleware } from "../metering";
 import { withRequestTimeout } from "../utils";
 
-// Under the shortest task maxDuration (600s) so a stalled call fails inside the task, not by Trigger's kill.
+// Bounds one request; kept under the shortest task maxDuration (600s) so a single stall fails inside the task.
 const REQUEST_TIMEOUT_MS = 9 * 60_000;
 
 // Lazy-init: Trigger.dev scans modules at deploy time; defer env throw to first call.
