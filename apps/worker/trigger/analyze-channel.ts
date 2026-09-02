@@ -1907,17 +1907,15 @@ export const analyzeChannel = task({
         const regeneratedTypes = new Set<"human" | "ai_reference" | "hottest">();
         await Promise.all(
           sopSteps.map(async (step) => {
-            const prompt = step.buildPrompt();
-            if (!prompt) {
-              logger.info(`Skipping ${step.type} SOP (preconditions not met)`);
-              return;
-            }
+            let outcome = "失败";
             try {
+              const prompt = step.buildPrompt();
+              if (!prompt) {
+                outcome = "跳过";
+                appendLog(`– ${step.type} SOP 跳过（缺少转写文本）`);
+                return;
+              }
               // 16384 cap: ai_reference truncated at 12000 on rich multi-video channels.
-              // Pro-with-Flash-fallback, not raw Pro: the human SOP is the longest document
-              // of the three (TOC + 7 sections + 2 appendices), so Pro routinely spent the
-              // whole budget on reasoning and returned empty — that SOP then silently never
-              // landed while the shorter two did.
               const sopResult = await generateTextWithFallback({
                 prompt,
                 maxOutputTokens: 16384,
@@ -1931,6 +1929,10 @@ export const analyzeChannel = task({
                 );
                 appendLog(`✗ ${step.type} SOP 生成失败（模型未返回内容）`);
                 return;
+              }
+              const truncated = sopResult.finishReason === "length";
+              if (truncated) {
+                logger.warn(`Truncated ${step.type} SOP (tier=${sopResult.usedTier}, ${cleaned.length} chars)`);
               }
               // ai_reference stays English, so the grounding pass must be tagged English.
               const grounded = await redactUngrounded({
@@ -1978,21 +1980,21 @@ export const analyzeChannel = task({
                 regeneratedTypes.add(step.type);
               }
               sopsGenerated++;
-              sopsCompleted++;
-              appendLog(`✓ ${step.type} SOP 完成`);
-              await metadata.set("progress", {
-                current: sopsCompleted,
-                total: sopSteps.length,
-                phase: "generating SOPs",
-                detail: `${step.type} 完成 (${sopsCompleted}/${sopSteps.length})`,
-              });
+              outcome = "完成";
+              appendLog(truncated ? `⚠ ${step.type} SOP 完成（末尾被截断）` : `✓ ${step.type} SOP 完成`);
             } catch (err) {
               const msg = (err as Error).message;
               console.error(`[analyze-channel] SOP ${step.type} failed:`, msg);
               logger.error(`SOP ${step.type} failed`, { message: msg.slice(0, 500) });
-              // A missing SOP used to be invisible: the run still reported 完成 with one
-              // fewer document and nothing said which one.
               appendLog(`✗ ${step.type} SOP 生成失败`);
+            } finally {
+              sopsCompleted++;
+              await metadata.set("progress", {
+                current: sopsCompleted,
+                total: sopSteps.length,
+                phase: "generating SOPs",
+                detail: `${step.type} ${outcome} (${sopsCompleted}/${sopSteps.length})`,
+              });
             }
           }),
         );

@@ -57,30 +57,42 @@ export function llm(tier: LlmTier = "flash") {
   });
 }
 
-// DeepSeek Pro is a reasoning model: on heavy prompts it can burn the whole output budget on
-// internal reasoning and return empty text (finishReason="length"), so Flash retries that case.
+type FallbackResult = { text: string; usedTier: LlmTier; finishReason?: string };
+
+// Pro reasons inside the same output budget: on the longest prompts it returns empty or cut
+// text (finishReason "length"), or runs into the request cap. Flash, which does not reason,
+// gets the same budget as pure text; when both are cut the longer answer wins.
 export async function generateTextWithFallback(opts: {
   prompt: string;
   maxOutputTokens: number;
   temperature?: number;
   maxRetries?: number;
-}): Promise<{ text: string; usedTier: LlmTier; finishReason?: string }> {
-  const result = await generateText({
-    model: llm("pro"),
-    prompt: opts.prompt,
-    maxOutputTokens: opts.maxOutputTokens,
-    temperature: opts.temperature ?? 0.3,
-    maxRetries: opts.maxRetries ?? 2,
-  });
-  if (result.text.length > 0) {
-    return { text: result.text, usedTier: "pro", finishReason: result.finishReason ?? undefined };
+}): Promise<FallbackResult> {
+  const run = async (tier: LlmTier): Promise<FallbackResult> => {
+    const r = await generateText({
+      model: llm(tier),
+      prompt: opts.prompt,
+      maxOutputTokens: opts.maxOutputTokens,
+      temperature: opts.temperature ?? 0.3,
+      maxRetries: opts.maxRetries ?? 2,
+    });
+    return { text: r.text, usedTier: tier, finishReason: r.finishReason ?? undefined };
+  };
+
+  let pro: FallbackResult | null = null;
+  try {
+    pro = await run("pro");
+  } catch (err) {
+    if (!isRequestAbort(err)) throw err;
   }
-  const fallback = await generateText({
-    model: llm("flash"),
-    prompt: opts.prompt,
-    maxOutputTokens: opts.maxOutputTokens,
-    temperature: opts.temperature ?? 0.3,
-    maxRetries: opts.maxRetries ?? 2,
-  });
-  return { text: fallback.text, usedTier: "flash", finishReason: fallback.finishReason ?? undefined };
+  if (pro && pro.text.length > 0 && pro.finishReason !== "length") return pro;
+
+  const flash = await run("flash");
+  if (pro && flash.finishReason === "length" && pro.text.length > flash.text.length) return pro;
+  return flash;
+}
+
+function isRequestAbort(err: unknown): boolean {
+  const name = (err as { name?: unknown } | null)?.name;
+  return name === "TimeoutError" || name === "AbortError";
 }
