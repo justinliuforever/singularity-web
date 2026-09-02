@@ -1,6 +1,4 @@
-// A/B of Pro vs Flash on the real human-SOP prompt, rebuilt exactly as analyze-channel does for
-// a channel under the 80k reduce budget. RUNS=n per tier; WRAPPER=1 runs generateTextWithFallback
-// once instead. Read-only.
+// Prompt is rebuilt byte-for-byte as analyze-channel does for a channel under the 80k reduce budget.
 import { resolve } from "node:path";
 import { writeFileSync } from "node:fs";
 import dotenv from "dotenv";
