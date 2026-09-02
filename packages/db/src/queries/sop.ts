@@ -1,7 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import { clerkSops } from "../schema/clerk";
+import { competitorAccounts } from "../schema/competitor";
 import { projectSops } from "../schema/project";
 
 export type ResolvedSop = { id: string; contentMd: string };
@@ -16,7 +17,14 @@ export async function resolvePrimarySop(
     .select({ id: clerkSops.id, contentMd: clerkSops.contentMd })
     .from(projectSops)
     .innerJoin(clerkSops, eq(clerkSops.id, projectSops.sopId))
-    .where(and(eq(projectSops.projectId, projectId), eq(projectSops.role, "primary")))
+    .leftJoin(competitorAccounts, eq(competitorAccounts.id, clerkSops.competitorAccountId))
+    .where(
+      and(
+        eq(projectSops.projectId, projectId),
+        eq(projectSops.role, "primary"),
+        isNull(competitorAccounts.deletedAt),
+      ),
+    )
     .orderBy(desc(clerkSops.generatedAt), desc(clerkSops.id))
     .limit(1);
   if (bound) return bound;

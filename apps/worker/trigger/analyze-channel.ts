@@ -1912,7 +1912,7 @@ export const analyzeChannel = task({
               const prompt = step.buildPrompt();
               if (!prompt) {
                 outcome = "跳过";
-                appendLog(`– ${step.type} SOP 跳过（缺少转写文本）`);
+                appendLog(`– ${step.type} SOP 跳过（没有可用的文本素材）`);
                 return;
               }
               // 16384 cap: ai_reference truncated at 12000 on rich multi-video channels.

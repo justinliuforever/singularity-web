@@ -81,7 +81,8 @@ export async function generateTextWithFallback(opts: {
   if (pro && pro.text.length > 0 && pro.finishReason !== "length") return pro;
 
   const flash = await run("flash");
-  if (pro && flash.finishReason === "length" && pro.text.length > flash.text.length) return pro;
+  const flashUnusable = flash.text.length === 0 || flash.finishReason === "length";
+  if (pro && flashUnusable && pro.text.length > flash.text.length) return pro;
   return flash;
 }
 

@@ -128,7 +128,7 @@ export default async function PoetChannelPage({ params }: Props) {
           <span className="size-2 rounded-full bg-poet" />
           <h1 className="text-2xl font-semibold tracking-tight">{channel.name}</h1>
           <Badge variant="secondary" className="font-mono text-[10px]">
-            {scripts.length} 篇脚本
+            {scripts.length >= 100 ? "100+" : scripts.length} 篇脚本
           </Badge>
           <Badge variant="secondary" className="font-mono text-[10px]">
             {approvedIdeas.length} 个待写
