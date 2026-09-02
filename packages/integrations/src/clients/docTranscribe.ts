@@ -18,7 +18,7 @@ function getAnthropic() {
     if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in env");
     _anthropic = createAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      fetch: withRequestTimeout(10 * 60_000),
+      fetch: withRequestTimeout(15 * 60_000),
     });
   }
   return _anthropic;

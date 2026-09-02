@@ -54,9 +54,7 @@ export function llm(tier: LlmTier = "flash") {
 
 type FallbackResult = { text: string; usedTier: LlmTier; finishReason?: string };
 
-// Pro reasons inside the same output budget: on the longest prompts it returns empty or cut
-// text (finishReason "length"), or runs into the request cap. Flash, which does not reason,
-// gets the same budget as pure text; when both are cut the longer answer wins.
+// Pro reasons inside the same output budget, so empty, cut, or timed-out Pro text goes to Flash.
 export async function generateTextWithFallback(opts: {
   prompt: string;
   maxOutputTokens: number;

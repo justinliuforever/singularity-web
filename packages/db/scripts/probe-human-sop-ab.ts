@@ -1,7 +1,6 @@
-// Reproduces PR #12's claim on the real human-SOP prompt: does Pro return empty at 16384, and
-// does Flash (thinking off) complete it? Rebuilds videosData exactly as analyze-channel does
-// for a channel under the 80k reduce budget (raw pass-through, no partial reduce), so the
-// prompt is byte-for-byte what production sends. Read-only; writes nothing.
+// A/B of Pro vs Flash on the real human-SOP prompt, rebuilt exactly as analyze-channel does for
+// a channel under the 80k reduce budget. RUNS=n per tier; WRAPPER=1 runs generateTextWithFallback
+// once instead. Read-only.
 import { resolve } from "node:path";
 import { writeFileSync } from "node:fs";
 import dotenv from "dotenv";
@@ -9,7 +8,7 @@ import { generateText } from "ai";
 import postgres from "postgres";
 
 import { buildHumanSopPrompt } from "@goooose/prompts/clerk";
-import { llm } from "@goooose/integrations/clients/llm";
+import { generateTextWithFallback, llm } from "@goooose/integrations/clients/llm";
 
 dotenv.config({ path: resolve(import.meta.dirname, "../../../.env.local") });
 const sql = postgres(process.env.DATABASE_URL!, { prepare: false });
@@ -48,6 +47,17 @@ console.log(`videos ${vids.length} | videosData ${videosData.length}ch | prompt 
 
 const SECTIONS = [/Section 1|第一|## 1/i, /Section 2|## 2/i, /Section 3|## 3/i, /Section 4|## 4/i, /Section 5|## 5/i, /Section 6|## 6/i, /Section 7|## 7/i, /Appendix A|附录 ?A/i, /Appendix B|附录 ?B/i];
 const rows: string[] = [];
+if (process.env.WRAPPER) {
+  const t0 = Date.now();
+  const r = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.4, maxRetries: 2 });
+  const text = r.text.trim();
+  const secs = SECTIONS.filter((re) => re.test(text)).length;
+  console.log(`wrapper ${Math.round((Date.now() - t0) / 1000)}s usedTier=${r.usedTier} finish=${r.finishReason} text=${text.length}ch sections=${secs}/9`);
+  writeFileSync("/tmp/humansop_wrapper.md", text);
+  writeFileSync("/tmp/humansop_wrapper.txt", `usedTier=${r.usedTier} finish=${r.finishReason} text=${text.length} sections=${secs}`);
+  await sql.end();
+  process.exit(0);
+}
 for (const tier of ["pro", "flash"] as const) {
   for (let i = 1; i <= RUNS; i++) {
     const t0 = Date.now();
