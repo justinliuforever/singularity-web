@@ -54,12 +54,13 @@ export function llm(tier: LlmTier = "flash") {
 
 type FallbackResult = { text: string; usedTier: LlmTier; finishReason?: string };
 
-// Pro reasons inside the same output budget, so empty, cut, or timed-out Pro text goes to Flash.
+// Reasoning shares the output budget, so an empty, cut, or timed-out answer retries on the other tier.
 export async function generateTextWithFallback(opts: {
   prompt: string;
   maxOutputTokens: number;
   temperature?: number;
   maxRetries?: number;
+  primary?: LlmTier;
 }): Promise<FallbackResult> {
   const run = async (tier: LlmTier): Promise<FallbackResult> => {
     const r = await generateText({
@@ -72,18 +73,21 @@ export async function generateTextWithFallback(opts: {
     return { text: r.text, usedTier: tier, finishReason: r.finishReason ?? undefined };
   };
 
-  let pro: FallbackResult | null = null;
+  const primary = opts.primary ?? "pro";
+  const secondary: LlmTier = primary === "pro" ? "flash" : "pro";
+
+  let first: FallbackResult | null = null;
   try {
-    pro = await run("pro");
+    first = await run(primary);
   } catch (err) {
     if (!isRequestAbort(err)) throw err;
   }
-  if (pro && pro.text.length > 0 && pro.finishReason !== "length") return pro;
+  if (first && first.text.length > 0 && first.finishReason !== "length") return first;
 
-  const flash = await run("flash");
-  const flashUnusable = flash.text.length === 0 || flash.finishReason === "length";
-  if (pro && flashUnusable && pro.text.length > flash.text.length) return pro;
-  return flash;
+  const second = await run(secondary);
+  const secondUnusable = second.text.length === 0 || second.finishReason === "length";
+  if (first && secondUnusable && first.text.length > second.text.length) return first;
+  return second;
 }
 
 function isRequestAbort(err: unknown): boolean {

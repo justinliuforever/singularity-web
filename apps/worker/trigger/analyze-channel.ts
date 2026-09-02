@@ -18,7 +18,7 @@ import {
 
 import { withMeteredRunDb } from "../lib/metered-run";
 import { userRunsQueue } from "../lib/queues";
-import { generateTextWithFallback, llm } from "@goooose/integrations/clients/llm";
+import { generateTextWithFallback, llm, type LlmTier } from "@goooose/integrations/clients/llm";
 import { summarizeVideoForSop } from "@goooose/domain/services/clerk-map";
 import { redactUngrounded } from "@goooose/domain/services/grounding";
 import { withProxyRetry, type ProxyPool } from "@goooose/integrations/proxy";
@@ -1797,15 +1797,19 @@ export const analyzeChannel = task({
 
         // Each SOP is grounded against the material its prompt received — hottest reads the full
         // transcript, and checking it against the map summaries redacted legitimate quotes.
+        // Measured on real channels: Pro cuts or empties the two long documents at 16384 and
+        // only completes the short hottest one, so the long ones start on Flash.
         const sopSteps: Array<{
           type: "human" | "ai_reference" | "hottest";
           phase: string;
+          primary: LlmTier;
           buildPrompt: () => string | null;
           groundingSource: () => string;
         }> = [
           {
             type: "human",
             phase: "generating human SOP",
+            primary: "flash",
             buildPrompt: () =>
               buildHumanSopPrompt({
                 channelName: channel.name,
@@ -1820,6 +1824,7 @@ export const analyzeChannel = task({
           },
           {
             type: "ai_reference",
+            primary: "flash",
             phase: "generating AI reference SOP",
             buildPrompt: () =>
               buildAiSopReferencePrompt({
@@ -1835,6 +1840,7 @@ export const analyzeChannel = task({
           },
           {
             type: "hottest",
+            primary: "pro",
             phase: "generating hottest video deep dive",
             buildPrompt: () => {
               const top = channelVideos[0];
@@ -1921,6 +1927,7 @@ export const analyzeChannel = task({
                 maxOutputTokens: 16384,
                 temperature: 0.4,
                 maxRetries: 2,
+                primary: step.primary,
               });
               const cleaned = safeText(sopResult.text);
               if (!cleaned) {

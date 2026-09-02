@@ -47,7 +47,8 @@ const SECTIONS = [/Section 1|第一|## 1/i, /Section 2|## 2/i, /Section 3|## 3/i
 const rows: string[] = [];
 if (process.env.WRAPPER) {
   const t0 = Date.now();
-  const r = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.4, maxRetries: 2 });
+  const primary = process.env.PRIMARY === "flash" ? "flash" : "pro";
+  const r = await generateTextWithFallback({ prompt, maxOutputTokens: 16384, temperature: 0.4, maxRetries: 2, primary });
   const text = r.text.trim();
   const secs = SECTIONS.filter((re) => re.test(text)).length;
   console.log(`wrapper ${Math.round((Date.now() - t0) / 1000)}s usedTier=${r.usedTier} finish=${r.finishReason} text=${text.length}ch sections=${secs}/9`);
