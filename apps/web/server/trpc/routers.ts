@@ -2085,7 +2085,9 @@ export const appRouter = router({
                 when ${clerkSops.sopType} = 'single_video' then 'single_video'
                 when ${clerkSops.competitorAccountId} is not null then 'competitor'
                 else 'own' end`,
-              label: sql<string>`coalesce(${clerkVideos.title}, ${channels.name}, ${ownAccounts.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未命名 SOP')`,
+              label: sql<string>`case
+                when ${clerkSops.sopType} = 'single_video' then coalesce(${clerkVideos.title}, ${competitorAccounts.name}, ${ownAccounts.name}, '未命名 SOP')
+                else coalesce(${channels.name}, ${ownAccounts.name}, ${competitorAccounts.name}, ${competitorAccounts.url}, '未命名 SOP') end`,
             })
             .from(clerkSops)
             .leftJoin(channels, eq(channels.id, clerkSops.channelId))

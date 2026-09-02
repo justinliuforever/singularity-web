@@ -81,7 +81,8 @@ export function WriteScriptSheet({
   );
   const options = sopOptions.data?.options ?? [];
   const primarySopId = sopOptions.data?.primarySopId ?? null;
-  const noSopAtAll = sopOptions.data != null && options.length === 0 && !primarySopId;
+  const noPrimary = sopOptions.data != null && !primarySopId;
+  const primaryLabel = primarySopId ? "默认 · 项目主 SOP" : "不使用 SOP";
 
   if (disabled) {
     return (
@@ -179,11 +180,14 @@ export function WriteScriptSheet({
               </div>
             </Field>
 
-            {noSopAtAll ? (
+            {noPrimary && sopChoice === PRIMARY ? (
               <div className="flex flex-col gap-2 rounded-md border border-amber-600/40 bg-amber-500/10 p-3 text-xs">
-                <span className="font-medium">该账号还没有任何 SOP</span>
+                <span className="font-medium">
+                  {options.length > 0 ? "本项目还没有默认 SOP" : "该账号还没有任何 SOP"}
+                </span>
                 <span className="text-muted-foreground">
-                  SOP 来自操盘小鹅的分析，缺少它脚本会少了结构化的钩子 / 留人指导。可以直接写，也可以先去生成。
+                  SOP 来自操盘小鹅的分析，缺少它脚本会少了结构化的钩子 / 留人指导。
+                  {options.length > 0 ? "可以在下面选一份，也可以直接写。" : "可以直接写，也可以先去生成。"}
                 </span>
                 {channelSlug ? (
                   <Button
@@ -196,29 +200,27 @@ export function WriteScriptSheet({
                   </Button>
                 ) : null}
               </div>
-            ) : (
+            ) : null}
+
+            {options.length > 0 ? (
               <Field>
                 <FieldLabel>打法参考 SOP</FieldLabel>
                 <Select value={sopChoice} onValueChange={(v) => setSopChoice(typeof v === "string" ? v : PRIMARY)}>
                   <SelectTrigger className="w-full">
                     <span className="truncate">
-                      {sopChoice === PRIMARY
-                        ? "默认 · 项目主 SOP"
-                        : chosen
-                          ? optionLabel(chosen)
-                          : "默认 · 项目主 SOP"}
+                      {sopChoice !== PRIMARY && chosen ? optionLabel(chosen) : primaryLabel}
                     </span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value={PRIMARY}>默认 · 项目主 SOP</SelectItem>
+                      <SelectItem value={PRIMARY}>{primaryLabel}</SelectItem>
                     </SelectGroup>
                     {groups.map((g) => (
                       <SelectGroup key={g.key}>
                         <SelectLabel>{g.label}</SelectLabel>
                         {g.items.map((o) => (
                           <SelectItem key={o.id} value={o.id}>
-                            {optionLabel(o)}
+                            <span className="block max-w-[22rem] truncate">{optionLabel(o)}</span>
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -229,7 +231,7 @@ export function WriteScriptSheet({
                   脚本的结构、钩子和留人节奏会按选中的 SOP 来；选「单条爆款拆解」即按那条爆款的打法写
                 </p>
               </Field>
-            )}
+            ) : null}
           </FieldGroup>
         </div>
 
