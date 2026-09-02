@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import { sopTypeLabel } from "@/lib/sop-labels";
 import { resolveOwnedProject } from "@/lib/account-access";
 
+import { RenameScriptButton } from "../../_components/rename-script-button";
 import { ScriptDetailActions } from "./_components/script-detail-actions";
 
 type Props = { params: Promise<{ slug: string; project: string; scriptId: string }> };
@@ -75,8 +76,10 @@ export default async function ScriptDetailPage({ params }: Props) {
       <BackLink href={`/accounts/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectSlug)}/poet`} label="神笔小鹅" />
 
       <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">脚本详情</h1>
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="line-clamp-2 text-2xl font-semibold tracking-tight">
+            {script.name ?? idea?.storyAngle ?? customTopic?.topic ?? "脚本详情"}
+          </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <Badge variant="secondary" className="font-mono text-[10px] uppercase">
               {script.language}
@@ -92,12 +95,15 @@ export default async function ScriptDetailPage({ params }: Props) {
             </span>
           </div>
         </div>
-        <ScriptDetailActions
-          scriptId={script.id}
-          scriptText={script.scriptText}
-          accountSlug={slug}
-          projectSlug={projectSlug}
-        />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <RenameScriptButton scriptId={script.id} currentName={script.name ?? ""} />
+          <ScriptDetailActions
+            scriptId={script.id}
+            scriptText={script.scriptText}
+            accountSlug={slug}
+            projectSlug={projectSlug}
+          />
+        </div>
       </header>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">

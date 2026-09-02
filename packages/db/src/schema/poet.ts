@@ -151,6 +151,8 @@ export const poetScripts = pgTable(
     customTopicId: uuid("custom_topic_id").references(() => poetCustomTopics.id, { onDelete: "set null" }),
     bibleId: uuid("bible_id").references(() => poetBible.id, { onDelete: "set null" }),
     sopId: uuid("sop_id").references(() => clerkSops.id, { onDelete: "set null" }),
+    // User-set script name; NULL falls back to the source topic title at display time.
+    name: text("name"),
     scriptText: text("script_text").notNull(),
     language: languageEnum("language").notNull(),
     wordCount: integer("word_count"),

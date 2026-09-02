@@ -62,6 +62,8 @@ export const generateScriptInput = z.object({
   ideaId: z.string().uuid(),
   durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),
+  // Explicit playbook pick (any sop_type incl. single_video); omitted = project primary.
+  sopId: z.string().uuid().optional(),
 });
 
 export const customTopicReferenceInput = z.object({
@@ -99,6 +101,11 @@ export const deleteScriptInput = z.object({
   scriptId: z.string().uuid(),
 });
 
+export const renameScriptInput = z.object({
+  scriptId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+});
+
 export const analyzeCustomTopicInput = z.object({
   channelId: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -112,4 +119,11 @@ export const generateScriptFromCustomTopicInput = z.object({
   topicId: z.string().uuid(),
   durationSeconds: z.number().int().min(15).max(3600).default(300),
   language: z.enum(["en", "zh"]).default("zh"),
+  // Explicit playbook pick (any sop_type incl. single_video); omitted = project primary.
+  sopId: z.string().uuid().optional(),
+});
+
+export const poetSopOptionsInput = z.object({
+  channelId: z.string().uuid(),
+  projectId: z.string().uuid(),
 });
