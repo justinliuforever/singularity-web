@@ -2,6 +2,15 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { generateText, wrapLanguageModel, type LanguageModelMiddleware } from "ai";
 
 import { usageMiddleware } from "../metering";
+import { withRequestTimeout } from "../utils";
+
+// Every other client here caps its requests (xhs/douyin/tikhub at 30s, asr on its own
+// controller); this one had none, so a stalled DeepSeek connection blocked the calling task
+// until Trigger.dev's maxDuration — observed as SOP generation frozen at 1/3 for over an
+// hour, holding the account lock the whole time. 10 minutes clears any legitimate call (the
+// longest is a 16384-token Pro generation with reasoning) while turning an open-ended hang
+// into a normal failure the step can catch and report.
+const REQUEST_TIMEOUT_MS = 10 * 60_000;
 
 // Lazy-init: Trigger.dev scans modules at deploy time; defer env throw to first call.
 let _deepseek: ReturnType<typeof createDeepSeek> | null = null;
@@ -11,7 +20,10 @@ function getDeepseek() {
     if (!process.env.DEEPSEEK_API_KEY) {
       throw new Error("DEEPSEEK_API_KEY not set in env");
     }
-    _deepseek = createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY });
+    _deepseek = createDeepSeek({
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      fetch: withRequestTimeout(REQUEST_TIMEOUT_MS),
+    });
   }
   return _deepseek;
 }

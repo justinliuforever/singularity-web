@@ -3,14 +3,23 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, wrapLanguageModel } from "ai";
 import { usageMiddleware } from "../metering";
-import { parseLlmJson } from "../utils";
+import { parseLlmJson, withRequestTimeout } from "../utils";
+
+// Same gap the DeepSeek client had: no cap meant a stalled connection hung video analysis
+// until the task's maxDuration. Vision calls are single images, so they need far less room
+// than a 16k-token SOP generation.
+const REQUEST_TIMEOUT_MS = 3 * 60_000;
+const IMAGE_FETCH_TIMEOUT_MS = 30_000;
 
 let _anthropic: ReturnType<typeof createAnthropic> | null = null;
 
 function getAnthropic() {
   if (!_anthropic) {
     if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in env");
-    _anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    _anthropic = createAnthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      fetch: withRequestTimeout(REQUEST_TIMEOUT_MS),
+    });
   }
   return _anthropic;
 }
@@ -50,7 +59,10 @@ Return JSON only, no markdown fences.`;
 // passing bytes bypasses that fetcher entirely.
 async function fetchImageBytes(url: string): Promise<Uint8Array | null> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     return new Uint8Array(await res.arrayBuffer());
   } catch {
