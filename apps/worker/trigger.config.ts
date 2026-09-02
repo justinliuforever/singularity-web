@@ -3,7 +3,9 @@ import { ffmpeg } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
   project: "proj_lfwtogxhtvfemlfqeooh",
-  runtime: "node",
+  // "node" is the legacy default, which is Node 21 — Trigger.dev stops accepting new
+  // deployments on it from 2026-10-05. node-24 needs SDK >=4.5.5; 4.4.x had no such enum value.
+  runtime: "node-24",
   logLevel: "log",
   maxDuration: 14400,
   dirs: ["./trigger"],

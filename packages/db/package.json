@@ -46,7 +46,7 @@
     "@goooose/domain": "workspace:*",
     "@goooose/integrations": "workspace:*",
     "@goooose/prompts": "workspace:*",
-    "@trigger.dev/sdk": "^4.4.6",
+    "@trigger.dev/sdk": "^4.5.15",
     "ai": "^6.0.184",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
