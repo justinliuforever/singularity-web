@@ -1,0 +1,11 @@
+import { resolve } from "node:path";
+import dotenv from "dotenv";
+import postgres from "postgres";
+dotenv.config({ path: resolve(import.meta.dirname, "../../../.env.local") });
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false });
+const r = await sql`select column_name from information_schema.columns where table_name = 'poet_scripts' and column_name = 'name'`;
+console.log(r.length ? "poet_scripts.name EXISTS" : "poet_scripts.name MISSING");
+const runs = await sql`select id, command, status, error_message, started_at from pipeline_runs where started_at > now() - interval '40 minutes' or status = 'pending' order by started_at desc nulls first limit 8`;
+console.log(`runs created last 40 min: ${runs.length}`);
+for (const x of runs) console.log(` ${x.command} ${x.status} ${x.error_message ?? ""} ${x.started_at ?? ""}`);
+await sql.end();
